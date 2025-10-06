@@ -1,0 +1,17 @@
+trash/
+.vscode/
+.claude/
+data/
+logs/
+output/
+__pycache__/
+results/cache/
+results/figures/
+results/tables/
+results/vocab_lr_global/
+results/vocab_lr_per_model/
+*.log
+*.pkl
+pgt_jobs.txt
+misc/
+CLAUDE.md
