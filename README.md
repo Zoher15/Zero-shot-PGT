@@ -1,5 +1,11 @@
 # Prefilled Responses Enhance Zero-Shot Detection of AI-Generated Images
 
+[![Python 3.11](https://img.shields.io/badge/python-3.11-blue.svg)](https://www.python.org/downloads/release/python-3110/)
+[![PyTorch 2.7.1](https://img.shields.io/badge/PyTorch-2.7.1-ee4c2c.svg)](https://pytorch.org/)
+[![vLLM 0.10.1](https://img.shields.io/badge/vLLM-0.10.1-green.svg)](https://github.com/vllm-project/vllm)
+[![License](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+[![arXiv](https://img.shields.io/badge/arXiv-2501.xxxxx-b31b1b.svg)](https://arxiv.org/)
+
 ## 🤝 Citation
 
 If you use this code in your research, please cite our paper:
