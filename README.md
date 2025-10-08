@@ -18,7 +18,7 @@ If you use this code in your research, please cite our paper:
 ---
 
 <p align="center">
-  <img src="mosaic.png" alt="Sample images from D3, DF40, and GenImage datasets" width="800"/>
+  <img src="images/mosaic.png" alt="Sample images from D3, DF40, and GenImage datasets" width="800"/>
 </p>
 
 > **Can you tell which images above are real vs AI-generated?** Answer in footnote¹
@@ -32,7 +32,7 @@ This repository contains the evaluation system for our paper on using **Prefill-
 ## 🎯 What is Prefill-Guided Thinking?
 
 <p align="center">
-  <img src="elephant.png" alt="PGT methods comparison" width="800"/>
+  <img src="images/elephant.png" alt="PGT methods comparison" width="800"/>
 </p>
 
 Instead of asking a VLM to detect fake images directly, we **prefill** its response to guide its reasoning:
@@ -100,13 +100,13 @@ All models use instruction-tuned variants via vLLM for efficient inference.
 ## 📈 Results
 
 <p align="center">
-  <img src="macro_f1_bars.png" alt="Macro F1 performance comparison" width="900"/>
+  <img src="images/macro_f1_bars.png" alt="Macro F1 performance comparison" width="900"/>
 </p>
 
 **Detection performance (Macro F1) across models, datasets, and PGT variations.** Bars are annotated with relative improvements of S2 over the next best method and 95% confidence error bars from 10k bootstrap iterations.
 
 <p align="center">
-  <img src="recall_radar_llama.png" alt="Per-generator recall for Llama" width="900"/>
+  <img src="images/recall_radar_llama.png" alt="Per-generator recall for Llama" width="900"/>
 </p>
 
 **Detection performance (Recall) for Llama across different datasets and their state-of-the-art synthetic image generators.** Similar figures for LLaVA and Qwen in the paper.
