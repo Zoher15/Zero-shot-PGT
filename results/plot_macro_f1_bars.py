@@ -68,8 +68,8 @@ def load_performance_json(dataset: str, model: str, phrase: str, mode: str = 'pr
     """
     output_dir = config.get_output_dir(dataset, model, phrase, mode, n)
 
-    # Find most recent performance JSON
-    performance_files = sorted(output_dir.glob("performance_*.json"))
+    # Find most recent performance_fixed JSON (with null handling)
+    performance_files = sorted(output_dir.glob("performance_fixed_*.json"))
     if not performance_files:
         print(f"⚠️  No performance JSON found for {dataset}/{model}/{phrase}")
         return None
@@ -202,10 +202,7 @@ def create_macro_f1_bar_plot(results: Dict, ci_data: Optional[Dict] = None):
         results: Nested dict {dataset: {model: {method: f1_score}}}
         ci_data: Optional nested dict {dataset: {model: {method: (lower, upper)}}}
     """
-    fig, axes = plt.subplots(1, 3, figsize=(pc.ACL_FULL_WIDTH, FIGURE_HEIGHT), sharey=True)
-
-    # Compute global y-axis limits
-    y_min, y_max = compute_global_y_limits(results)
+    fig, axes = plt.subplots(1, 3, figsize=(pc.ACL_FULL_WIDTH, FIGURE_HEIGHT))
 
     # Bar width and positions
     n_models = len(pc.MODEL_ORDER)
@@ -221,6 +218,21 @@ def create_macro_f1_bar_plot(results: Dict, ci_data: Optional[Dict] = None):
 
         # Prepare data for this dataset
         dataset_results = results[dataset]
+
+        # Compute y-axis limits for this dataset only
+        dataset_values = []
+        for model_data in dataset_results.values():
+            for f1_score in model_data.values():
+                if f1_score is not None:
+                    dataset_values.append(f1_score)
+
+        if dataset_values:
+            min_val = min(dataset_values)
+            max_val = max(dataset_values)
+            y_min = np.floor(min_val / 5) * 5
+            y_max = np.ceil(max_val / 5) * 5
+        else:
+            y_min, y_max = 0, 100
 
         # X positions for model groups
         x_positions = np.arange(n_models) * group_spacing
@@ -293,7 +305,7 @@ def create_macro_f1_bar_plot(results: Dict, ci_data: Optional[Dict] = None):
                             ax.text(
                                 x_positions[model_idx] + offset,
                                 y_pos + 0.5,  # Lower position (was 1)
-                                f'+{improvement:.0f}%',  # Round to nearest integer
+                                f'{improvement:+.0f}%',  # Use :+ to auto-add sign (+ or -)
                                 ha='center',
                                 va='bottom',
                                 fontsize=pc.ANNOTATION_FONT_SIZE,

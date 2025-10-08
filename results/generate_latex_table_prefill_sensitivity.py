@@ -76,8 +76,8 @@ def find_latest_performance_file(dataset: str, model: str, phrase: str, mode: st
     if not search_dir.exists():
         return None
 
-    # Find all performance JSON files
-    performance_files = list(search_dir.glob('performance_*.json'))
+    # Find all performance_fixed JSON files (with null handling)
+    performance_files = list(search_dir.glob('performance_fixed_*.json'))
 
     if not performance_files:
         return None

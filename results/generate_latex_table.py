@@ -45,8 +45,8 @@ MODE_DISPLAY_NAMES = {
     'prompt': 'Prompt'
 }
 
-# Model to use for the table (can be made configurable)
-MODEL = 'qwen25-vl-7b'
+# Models to generate tables for
+MODELS = ['qwen25-vl-7b', 'llama32-vision-11b', 'llava-onevision-7b']
 
 # Output directory
 TABLES_DIR = Path(__file__).resolve().parent / "tables"
@@ -57,7 +57,7 @@ TABLES_DIR.mkdir(parents=True, exist_ok=True)
 # =============================================================================
 
 def find_latest_performance_file(dataset: str, model: str, phrase: str, mode: Optional[str] = None) -> Optional[Path]:
-    """Find the latest performance JSON file for given configuration."""
+    """Find the latest performance_fixed JSON file for given configuration."""
     base_dir = Path(__file__).resolve().parent.parent / "output" / dataset / model
 
     if phrase == 'baseline':
@@ -70,8 +70,8 @@ def find_latest_performance_file(dataset: str, model: str, phrase: str, mode: Op
     if not search_dir.exists():
         return None
 
-    # Find all performance JSON files
-    performance_files = list(search_dir.glob('performance_*.json'))
+    # Find all performance_fixed JSON files (with null handling)
+    performance_files = list(search_dir.glob('performance_fixed_*.json'))
 
     if not performance_files:
         return None
@@ -195,8 +195,8 @@ def generate_latex_table(model: str, output_path: Path):
     lines.append("\\end{tabular}")
     lines.append("\\caption{Macro F1 scores across datasets and phrase modes. "
                 "Values in parentheses indicate performance change relative to Prefill baseline. "
-                f"Results for {MODEL}.}}")
-    lines.append("\\label{tab:macro_f1_modes}")
+                f"Results for {model}.}}")
+    lines.append(f"\\label{{tab:macro_f1_modes_{model.replace('-', '_')}}}")
     lines.append("\\end{table}")
 
     # Write to file
@@ -211,9 +211,10 @@ def generate_latex_table(model: str, output_path: Path):
 # =============================================================================
 
 def main():
-    """Generate LaTeX table."""
-    output_path = TABLES_DIR / f"macro_f1_modes_{MODEL}.tex"
-    generate_latex_table(MODEL, output_path)
+    """Generate LaTeX tables for all models."""
+    for model in MODELS:
+        output_path = TABLES_DIR / f"macro_f1_modes_{model}.tex"
+        generate_latex_table(model, output_path)
 
 
 if __name__ == '__main__':

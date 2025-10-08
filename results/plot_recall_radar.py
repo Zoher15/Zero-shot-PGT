@@ -68,7 +68,7 @@ SUBPLOT_BOTTOM = 0.12
 SUBPLOT_LEFT = 0.05
 SUBPLOT_RIGHT = 0.98
 SUBPLOT_WSPACE_RADAR = 0.25  # Wider spacing for radar plots
-LEGEND_Y_POSITION_RADAR = 1.05  # Different from bar plots
+LEGEND_Y_POSITION_RADAR = 1.15  # Different from bar plots
 
 # ============================================================================
 # HELPER FUNCTIONS
@@ -296,8 +296,8 @@ def create_radar_plot(ax, data: Dict[str, List[float]], labels: List[str],
         # Fill area
         ax.fill(angles, values, alpha=pc.FILL_ALPHA, color=pc.METHOD_COLORS[method])
 
-    # Title at bottom instead of top
-    ax.text(0.5, -0.20, title, ha='center', va='top',
+    # Title at top under legend
+    ax.text(0.5, 1.20, title, ha='center', va='bottom',
            transform=ax.transAxes, fontsize=pc.TITLE_FONT_SIZE)
 
 

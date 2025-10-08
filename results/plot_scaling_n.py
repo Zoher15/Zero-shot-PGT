@@ -75,8 +75,8 @@ def load_latest_performance_json(dataset: str, model: str, phrase: str, mode: st
     """
     output_dir = config.get_output_dir(dataset, model, phrase, mode, n)
 
-    # Find most recent performance JSON
-    performance_files = sorted(output_dir.glob("performance_*.json"))
+    # Find most recent performance_fixed JSON (with null handling)
+    performance_files = sorted(output_dir.glob("performance_fixed_*.json"))
     if not performance_files:
         print(f"⚠️  No performance JSON found for {dataset}/{model}/{phrase}/n={n}")
         return None

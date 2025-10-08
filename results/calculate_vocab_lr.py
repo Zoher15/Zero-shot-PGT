@@ -60,10 +60,11 @@ N = 1
 
 # Analysis mode
 PER_MODEL_ANALYSIS = True  # True: per-model LR, False: global LR
+PER_MODEL_METHOD_ANALYSIS = True  # True: per-model-method LR, overrides PER_MODEL_ANALYSIS
 
 # Hyperparameters
 N_WORKERS = 16
-TOP_N_WORDS = 100
+TOP_N_WORDS = 20
 MAX_FEATURES = 10000
 PARAM_GRID = {
     'C': [0.0001, 0.00025, 0.0005, 0.00075, 0.001, 0.0025, 0.005,
@@ -159,11 +160,19 @@ def find_latest_reasoning_file(model: str, phrase: str, dataset: str) -> Path:
         raise FileNotFoundError(f"No reasoning files for {model}/{phrase}/{dataset} in {output_dir}")
     return reasoning_files[0]
 
-def load_data_for_model(model: str, datasets: List[str]) -> Tuple[List[str], List[int], List[str]]:
-    """Load reasoning texts, labels, and method labels for a specific model from given datasets."""
+def load_data_for_model(model: str, datasets: List[str], method_filter: str = None) -> Tuple[List[str], List[int], List[str]]:
+    """Load reasoning texts, labels, and method labels for a specific model from given datasets.
+
+    Args:
+        model: Model name
+        datasets: List of dataset names to load
+        method_filter: Optional method name to filter by (e.g., 'baseline', 'cot', 's2')
+    """
     all_texts, all_labels, all_methods = [], [], []
 
     for phrase in PHRASES_TO_ANALYZE:
+        if method_filter and phrase != method_filter:
+            continue
         for dataset in datasets:
             try:
                 json_path = find_latest_reasoning_file(model, phrase, dataset)
@@ -261,8 +270,8 @@ def save_to_cache(model_name: str, datasets: List[str], cleaned_texts, labels, m
 def create_logistic_regression(C: float, n_jobs: int = 1) -> LogisticRegression:
     """Create LogisticRegression model with standard hyperparameters."""
     return LogisticRegression(
-        penalty='l2',
-        solver='lbfgs',
+        penalty='l1',
+        solver='liblinear',
         C=C,
         max_iter=100000,
         random_state=0,
@@ -440,7 +449,7 @@ def run_lr_analysis(train_texts: List[str], train_labels: List[int], train_metho
 
     # Vectorization (fit on combined for consistent vocabulary)
     logger.info(f"{prefix}Building vocabulary from combined data...")
-    vectorizer = CountVectorizer(max_features=MAX_FEATURES, min_df=5000, binary=False)
+    vectorizer = CountVectorizer(max_features=MAX_FEATURES, min_df=500, binary=True)
     vectorizer.fit(combined_texts)
     vocabulary = vectorizer.get_feature_names_out()
 
@@ -494,17 +503,32 @@ def run_lr_analysis(train_texts: List[str], train_labels: List[int], train_metho
 # MAIN
 # =============================================================================
 
-def load_model_data(model_name: str, datasets: List[str]) -> Tuple[List[str], List[int], List[str]]:
-    """Load and preprocess data for a model, with caching."""
+def load_model_data(model_name: str, datasets: List[str], method_filter: str = None) -> Tuple[List[str], List[int], List[str]]:
+    """Load and preprocess data for a model, with caching.
+
+    Args:
+        model_name: Model name
+        datasets: List of dataset names to load
+        method_filter: Optional method name to filter by (e.g., 'baseline', 'cot', 's2')
+    """
     cache_hit, cleaned_texts, labels, method_labels, raw_texts = try_load_cache(model_name, datasets)
 
     if not cache_hit:
-        raw_texts, labels, method_labels = load_data_for_model(model_name, datasets)
+        # Always load ALL methods for caching (never filter during cache build)
+        raw_texts, labels, method_labels = load_data_for_model(model_name, datasets, method_filter=None)
         logger.info(f"Preprocessing {model_name}...")
         cleaned_texts = preprocess_responses_parallel(raw_texts)
         save_to_cache(model_name, datasets, cleaned_texts, labels, method_labels, raw_texts)
 
-    return cleaned_texts, labels, method_labels
+    # Apply method filter after cache load if needed
+    if method_filter:
+        filtered = [(t, l, m) for t, l, m in zip(cleaned_texts, labels, method_labels) if m == method_filter]
+        if filtered:
+            cleaned_texts, labels, method_labels = zip(*filtered)
+        else:
+            cleaned_texts, labels, method_labels = [], [], []
+
+    return list(cleaned_texts), list(labels), list(method_labels)
 
 def run_global_analysis():
     """Run global LR analysis across all models."""
@@ -593,9 +617,55 @@ def run_per_model_analysis():
     logger.info("PER-MODEL ANALYSIS COMPLETED")
     logger.info("=" * 80)
 
+def run_per_model_method_analysis():
+    """Run separate LR analysis for each model-method combination."""
+    logger.info("=" * 80)
+    logger.info("PER-MODEL-METHOD LOGISTIC REGRESSION ANALYSIS")
+    logger.info("=" * 80)
+    logger.info(f"Models: {ALL_MODELS}")
+    logger.info(f"Methods: {PHRASES_TO_ANALYZE}")
+    logger.info(f"Train datasets: {TRAIN_DATASETS}")
+    logger.info(f"Val datasets: {VAL_DATASETS}")
+    logger.info("=" * 80)
+
+    OUTPUT_DIR_PER_MODEL_METHOD = RESULTS_DIR / "vocab_lr_per_model_method"
+    OUTPUT_DIR_PER_MODEL_METHOD.mkdir(parents=True, exist_ok=True)
+
+    for model_name in ALL_MODELS:
+        for method in PHRASES_TO_ANALYZE:
+            logger.info(f"\n{'='*80}")
+            logger.info(f"ANALYZING: {model_name} - {method}")
+            logger.info(f"{'='*80}")
+
+            # Load data filtered by method
+            train_texts, train_labels, train_methods = load_model_data(model_name, TRAIN_DATASETS, method_filter=method)
+            val_texts, val_labels, val_methods = load_model_data(model_name, VAL_DATASETS, method_filter=method)
+
+            logger.info(f"Train: {len(train_texts)} responses | Val: {len(val_texts)} responses")
+
+            # Run LR analysis
+            results = run_lr_analysis(train_texts, train_labels, train_methods,
+                                     val_texts, val_labels, val_methods,
+                                     model_name=f"{model_name}_{method}")
+
+            # Save results
+            output_file = OUTPUT_DIR_PER_MODEL_METHOD / f"{model_name}_{method}_vocab_lr.json"
+            with open(output_file, 'w') as f:
+                json.dump(results, f, indent=2)
+
+            logger.info(f"✓ {model_name} - {method} results: {output_file}")
+            logger.info(f"  Val Macro F1: {results['tuning_results']['val_macro_f1']:.4f}")
+            logger.info(f"  Val Acc: {results['tuning_results']['val_accuracy']:.4f}")
+
+    logger.info("\n" + "=" * 80)
+    logger.info("PER-MODEL-METHOD ANALYSIS COMPLETED")
+    logger.info("=" * 80)
+
 def main():
     """Main entry point."""
-    if PER_MODEL_ANALYSIS:
+    if PER_MODEL_METHOD_ANALYSIS:
+        run_per_model_method_analysis()
+    elif PER_MODEL_ANALYSIS:
         run_per_model_analysis()
     else:
         run_global_analysis()

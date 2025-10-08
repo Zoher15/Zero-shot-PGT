@@ -608,13 +608,14 @@ def _build_confusion_matrix(predictions: List[str], ground_truth: List[str]) -> 
     cm = {'TP': 0, 'TN': 0, 'FP': 0, 'FN': 0}
 
     for pred, truth in zip(predictions, ground_truth):
+        # Null predictions are treated as incorrect
         if truth == 'ai-generated' and pred == 'ai-generated':
             cm['TP'] += 1
         elif truth == 'real' and pred == 'real':
             cm['TN'] += 1
-        elif truth == 'real' and pred == 'ai-generated':
+        elif truth == 'real' and pred != 'real':  # Includes None and 'ai-generated'
             cm['FP'] += 1
-        elif truth == 'ai-generated' and pred == 'real':
+        elif truth == 'ai-generated' and pred != 'ai-generated':  # Includes None and 'real'
             cm['FN'] += 1
 
     return cm
@@ -762,7 +763,7 @@ def save_results(results: List[Dict[str, Any]], metrics: Dict[str, Any],
         'metrics': metrics
     }
 
-    performance_path = output_dir / f"performance_{timestamp}.json"
+    performance_path = output_dir / f"performance_fixed_{timestamp}.json"
     with open(performance_path, 'w', encoding='utf-8') as f:
         json.dump(performance_data, f, indent=2)
 

@@ -27,8 +27,9 @@ LOGS_DIR = PROJECT_ROOT / "logs"
 # DATASET IMAGE DIRECTORIES
 # =============================================================================
 
-DF40_IMAGE_DIR = Path("/data/df40/")
-GENIMAGE_IMAGE_DIR = Path("/data/genimage/")
+DF40_IMAGE_DIR = Path("/data3/singhdan/DF40/")
+GENIMAGE_IMAGE_DIR = Path("/data3/singhdan/genimage/")
+D3_IMAGE_DIR = DATA_DIR / "d3" / "images"  # D3 images downloaded from HuggingFace
 
 # =============================================================================
 # MODEL CONFIGURATIONS
@@ -44,7 +45,7 @@ VLM_MODELS = {
         'type': 'vllm'  # Local vLLM inference
     },
     'llava-onevision-7b': {
-        'hf_path': "llava-hf/llava-onevision-qwen2-7b-si-hf",
+        'hf_path': "llava-hf/llava-onevision-qwen2-7b-ov-chat-hf",
         'tensor_parallel_size': 1,
         'gpu_memory_utilization': 0.95,
         'trust_remote_code': True,

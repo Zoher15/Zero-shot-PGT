@@ -18,7 +18,7 @@ S2_COLOR = "#7F4CA5"        # Purple
 # =============================================================================
 
 MODEL_NAMES = {
-    'llava-onevision-7b': 'LLaVa',
+    'llava-onevision-7b': 'LLaVA',
     'qwen25-vl-7b': 'Qwen',
     'llama32-vision-11b': 'Llama'
 }
@@ -132,7 +132,7 @@ SUBPLOT_TOP = 0.97        # Top margin
 SUBPLOT_BOTTOM = 0.08     # Bottom margin
 SUBPLOT_LEFT = 0.02       # Left margin (minimal for tight layout)
 SUBPLOT_RIGHT = 0.98      # Right margin
-SUBPLOT_WSPACE = 0.1      # Horizontal space between subplots (0.25 for radar)
+SUBPLOT_WSPACE = 0.15     # Horizontal space between subplots (increased for independent y-axes)
 
 # Legend positioning
 LEGEND_Y_POSITION = 1.15  # Vertical position for shared legends (1.05 for radar)
