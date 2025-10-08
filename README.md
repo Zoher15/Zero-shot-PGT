@@ -31,7 +31,7 @@ If you use this code in your research, please cite our paper:
 
 This repository contains the evaluation system for our paper on using **Prefill-Guided Thinking (PGT)** to detect AI-generated images with Vision-Language Models (VLMs).
 
-> 💡 **For detailed technical documentation, particularly helpful for LLM code agents**: See [README_LLM.md](README_LLM.md) for complete architecture details, function signatures, and implementation specifics.
+> 💡 **For detailed technical documentation, particularly helpful for LLM code agents**: See [AGENTS.md](AGENTS.md) for complete architecture details, function signatures, and implementation specifics.
 
 **Key Finding:** Simply prefilling a VLM's response with the phrase *"Let's examine the style and the synthesis artifacts"* improves detection by up to **24% in Macro F1** — without any training or fine-tuning.
 
