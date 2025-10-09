@@ -104,7 +104,6 @@ ANNOTATION_FONT_SIZE = 6    # Small annotations (improvement markers, etc.)
 BAR_WIDTH = 0.25          # Width of individual bars in grouped bar charts
 BAR_HEIGHT = 0.6          # Height of horizontal bars
 BAR_EDGE_WIDTH = 0.5      # Width of bar borders
-BAR_ALPHA = 0.85          # Transparency for bar fill (used in vocab plots)
 
 # Error bar styling
 ERROR_BAR_WIDTH = 0.05    # Width of error bar lines

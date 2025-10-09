@@ -269,7 +269,6 @@ def create_macro_f1_bar_plot(results: Dict, ci_data: Optional[Dict] = None):
                 bar_width,
                 label=pc.METHOD_NAMES[method],
                 color=pc.METHOD_COLORS[method],
-                alpha=pc.BAR_ALPHA,
                 edgecolor='black',
                 linewidth=pc.BAR_EDGE_WIDTH,
                 yerr=yerr,

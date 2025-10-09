@@ -109,28 +109,28 @@ def plot_stacked_subplot(ax, words_data, is_positive=True, show_xlabel=True):
     if is_positive:
         # Positive bars: baseline (closest to 0), then cot, then s2
         ax.barh(y_positions, baseline_lengths, height=pc.BAR_HEIGHT,
-                color=pc.BASELINE_COLOR, label='Baseline', alpha=pc.BAR_ALPHA,
+                color=pc.BASELINE_COLOR, label='Baseline',
                 edgecolor='black', linewidth=pc.BAR_EDGE_WIDTH)
 
         ax.barh(y_positions, cot_lengths, height=pc.BAR_HEIGHT,
-                left=baseline_lengths, color=pc.COT_COLOR, label='CoT', alpha=pc.BAR_ALPHA,
+                left=baseline_lengths, color=pc.COT_COLOR, label='CoT',
                 edgecolor='black', linewidth=pc.BAR_EDGE_WIDTH)
 
         ax.barh(y_positions, s2_lengths, height=pc.BAR_HEIGHT,
-                left=baseline_lengths + cot_lengths, color=pc.S2_COLOR, label='S2', alpha=pc.BAR_ALPHA,
+                left=baseline_lengths + cot_lengths, color=pc.S2_COLOR, label='S2',
                 edgecolor='black', linewidth=pc.BAR_EDGE_WIDTH)
     else:
         # Negative bars: reverse order so s2 (closest to 0), then cot, then baseline
         ax.barh(y_positions, s2_lengths, height=pc.BAR_HEIGHT,
-                color=pc.S2_COLOR, label='S2', alpha=pc.BAR_ALPHA,
+                color=pc.S2_COLOR, label='S2',
                 edgecolor='black', linewidth=pc.BAR_EDGE_WIDTH)
 
         ax.barh(y_positions, cot_lengths, height=pc.BAR_HEIGHT,
-                left=s2_lengths, color=pc.COT_COLOR, label='CoT', alpha=pc.BAR_ALPHA,
+                left=s2_lengths, color=pc.COT_COLOR, label='CoT',
                 edgecolor='black', linewidth=pc.BAR_EDGE_WIDTH)
 
         ax.barh(y_positions, baseline_lengths, height=pc.BAR_HEIGHT,
-                left=s2_lengths + cot_lengths, color=pc.BASELINE_COLOR, label='Baseline', alpha=pc.BAR_ALPHA,
+                left=s2_lengths + cot_lengths, color=pc.BASELINE_COLOR, label='Baseline',
                 edgecolor='black', linewidth=pc.BAR_EDGE_WIDTH)
 
     # WORD LABELS
