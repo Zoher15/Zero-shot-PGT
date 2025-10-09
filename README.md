@@ -22,7 +22,7 @@ If you use this code in your research, please cite our paper:
 }
 ```
 
-*Note: Paper submitted to ACL 2025. Citation will be updated upon acceptance.*
+*Note: Paper submitted to ACL ARR.*
 
 ---
 
