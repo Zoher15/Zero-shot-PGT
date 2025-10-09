@@ -1,4 +1,4 @@
-# Prefilled Responses Enhance Zero-Shot Detection of AI-Generated Images
+# Prefilled responses enhance zero-shot detection of AI-generated images
 
 [![Python 3.11](https://img.shields.io/badge/python-3.11-blue.svg)](https://www.python.org/downloads/release/python-3110/)
 [![PyTorch 2.7.1](https://img.shields.io/badge/PyTorch-2.7.1-ee4c2c.svg)](https://pytorch.org/)
