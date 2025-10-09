@@ -11,11 +11,14 @@
 If you use this code in your research, please cite our paper:
 
 ```bibtex
-@article{kachwala2025prefilled,
-  title={Prefilled responses enhance zero-shot detection of AI-generated images},
-  author={Kachwala, Zoher and Singh, Danishjeet and Yang, Danielle and Menczer, Filippo},
-  journal={arXiv preprint},
-  year={2025}
+@misc{kachwala2025prefilledresponsesenhancezeroshot,
+      title={Prefilled responses enhance zero-shot detection of AI-generated images}, 
+      author={Zoher Kachwala and Danishjeet Singh and Danielle Yang and Filippo Menczer},
+      year={2025},
+      eprint={2506.11031},
+      archivePrefix={arXiv},
+      primaryClass={cs.LG},
+      url={https://arxiv.org/abs/2506.11031}, 
 }
 ```
 
