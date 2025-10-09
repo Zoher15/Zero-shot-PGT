@@ -4,7 +4,7 @@
 [![PyTorch 2.7.1](https://img.shields.io/badge/PyTorch-2.7.1-ee4c2c.svg)](https://pytorch.org/)
 [![vLLM 0.10.1](https://img.shields.io/badge/vLLM-0.10.1-green.svg)](https://github.com/vllm-project/vllm)
 [![License](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
-[![arXiv](https://img.shields.io/badge/arXiv-2501.xxxxx-b31b1b.svg)](https://arxiv.org/)
+[![arXiv](https://img.shields.io/badge/arXiv-2506.11031-b31b1b.svg)](https://arxiv.org/abs/2506.11031)
 
 ## 🤝 Citation
 
@@ -64,7 +64,7 @@ This simple technique works across **3 VLMs** and **16 different image generator
 
 ### Usage
 
-**See [Usage Examples](README_LLM.md#-usage-examples)** for detailed command-line examples and all available options.
+**See [Usage Examples](AGENTS.md#-usage-examples)** for detailed command-line examples and all available options.
 
 ---
 
@@ -80,7 +80,7 @@ We evaluate on three diverse benchmarks:
 
 ### Setup Data
 
-**See [Data Collection & Setup](README_LLM.md#-data-collection--setup)** for complete instructions on downloading and organizing all three datasets.
+**See [Data Collection & Setup](AGENTS.md#-data-collection--setup)** for complete instructions on downloading and organizing all three datasets.
 
 ---
 
@@ -102,7 +102,7 @@ All models use instruction-tuned variants via vLLM for efficient inference.
 | **CoT** | Chain-of-thought reasoning |
 | **S2** | Task-aligned (our method) |
 
-**See [Usage Examples](README_LLM.md#-usage-examples)** for detailed command-line examples and all available options.
+**See [Usage Examples](AGENTS.md#-usage-examples)** for detailed command-line examples and all available options.
 
 ---
 
@@ -124,9 +124,9 @@ All models use instruction-tuned variants via vLLM for efficient inference.
 
 ## 🔬 Advanced Usage
 
-- **Multi-Response Generation (n>1)** - Generate multiple responses with majority voting → [Details](README_LLM.md#multi-response-evaluation-n1)
-- **Phrase Modes** - Test prefill vs prompt vs system instruction → [Details](README_LLM.md#five-phrase-modes)
-- **Debug Mode** - Quick validation with 5 examples → [Details](README_LLM.md#debug-mode-testing)
+- **Multi-Response Generation (n>1)** - Generate multiple responses with majority voting → [Details](AGENTS.md#multi-response-evaluation-n1)
+- **Phrase Modes** - Test prefill vs prompt vs system instruction → [Details](AGENTS.md#five-phrase-modes)
+- **Debug Mode** - Quick validation with 5 examples → [Details](AGENTS.md#debug-mode-testing)
 
 ---
 
@@ -134,7 +134,7 @@ All models use instruction-tuned variants via vLLM for efficient inference.
 
 Results are saved in hierarchical directories with timestamped JSON files containing metrics and full reasoning traces.
 
-**See [Output Structure](README_LLM.md#-output-structure)** for detailed file organization and JSON schemas.
+**See [Output Structure](AGENTS.md#-output-structure)** for detailed file organization and JSON schemas.
 
 ---
 
@@ -142,14 +142,15 @@ Results are saved in hierarchical directories with timestamped JSON files contai
 
 Generate publication-ready plots (Macro F1 bars, radar plots, vocabulary analysis, etc.)
 
-**See [Plotting & Visualization System](README_LLM.md#-plotting--visualization-system)** for available plots and usage instructions.
+**See [Plotting & Visualization System](AGENTS.md#-plotting--visualization-system)** for available plots and usage instructions.
 
 ---
 
 ## 📚 Documentation
 
-- **[README_LLM.md](README_LLM.md)** - Complete technical reference (architecture, function signatures, all details)
-- **Paper** - [Link to ArXiv/ACL Anthology] *(coming soon)*
+- **[SETUP.md](SETUP.md)** - Environment setup and installation instructions
+- **[AGENTS.md](AGENTS.md)** - Complete technical reference (architecture, function signatures, all details)
+- **Paper** - [arXiv:2506.11031](https://arxiv.org/abs/2506.11031)
 
 ---
 
