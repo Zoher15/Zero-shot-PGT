@@ -66,6 +66,9 @@ PER_MODEL_METHOD_ANALYSIS = True  # True: per-model-method LR, overrides PER_MOD
 N_WORKERS = 16
 TOP_N_WORDS = 20
 MAX_FEATURES = 10000
+MIN_DF = 500
+PENALTY = 'l1'
+SOLVER = 'liblinear'
 PARAM_GRID = {
     'C': [0.0001, 0.00025, 0.0005, 0.00075, 0.001, 0.0025, 0.005,
           0.0075, 0.01, 0.025, 0.05, 0.075, 0.1, 0.25, 0.5, 0.75, 1]
@@ -270,8 +273,8 @@ def save_to_cache(model_name: str, datasets: List[str], cleaned_texts, labels, m
 def create_logistic_regression(C: float, n_jobs: int = 1) -> LogisticRegression:
     """Create LogisticRegression model with standard hyperparameters."""
     return LogisticRegression(
-        penalty='l1',
-        solver='liblinear',
+        penalty=PENALTY,
+        solver=SOLVER,
         C=C,
         max_iter=100000,
         random_state=0,
@@ -361,28 +364,46 @@ def train_final_model(X, y, best_C: float) -> Tuple[LogisticRegression, Dict[str
 # WORD EXTRACTION
 # =============================================================================
 
-def calculate_word_frequencies(cleaned_texts: List[str], method_labels: List[str],
+def calculate_word_frequencies(X_combined, method_labels: List[str],
                                vocabulary: List[str]) -> Dict[str, Dict[str, int]]:
-    """Calculate raw counts of responses containing each word, per method."""
-    method_texts = defaultdict(list)
-    for text, method in zip(cleaned_texts, method_labels):
-        method_texts[method].append(set(text.split()))
+    """Calculate raw counts of responses containing each word, per method.
 
+    Args:
+        X_combined: Sparse binary matrix [n_documents, n_features]
+        method_labels: List of method names for each document
+        vocabulary: List of words corresponding to matrix columns
+    """
+    # Convert to dense for easier indexing (still efficient for small vocab subsets)
+    X_dense = X_combined.toarray()
+
+    # Create method masks
+    method_masks = {}
+    for method in PHRASES_TO_ANALYZE:
+        method_masks[method] = np.array([m == method for m in method_labels])
+
+    # Calculate frequencies per word per method
     word_freqs = {}
-    for word in tqdm(vocabulary, desc="Computing frequencies"):
+    for word_idx, word in enumerate(vocabulary):
         word_freqs[word] = {}
         for method in PHRASES_TO_ANALYZE:
-            if method not in method_texts:
+            if method not in method_masks:
                 word_freqs[word][method] = 0
                 continue
-            texts = method_texts[method]
-            count = sum(1 for word_set in texts if word in word_set)
-            word_freqs[word][method] = count  # Raw count
+            # Count documents where word appears (column word_idx) AND method matches
+            count = int(X_dense[method_masks[method], word_idx].sum())
+            word_freqs[word][method] = count
 
     return word_freqs
 
-def extract_top_words(model, vocabulary, cleaned_texts, method_labels) -> Dict[str, Any]:
-    """Extract top positive/negative words with frequencies."""
+def extract_top_words(model, vocabulary, X_combined, method_labels) -> Dict[str, Any]:
+    """Extract top positive/negative words with frequencies.
+
+    Args:
+        model: Trained LogisticRegression model
+        vocabulary: List of words (features)
+        X_combined: Sparse binary matrix [n_documents, n_features]
+        method_labels: List of method names for each document
+    """
     coefficients = model.coef_[0]
     word_coef_pairs = list(zip(vocabulary, coefficients))
 
@@ -402,7 +423,7 @@ def extract_top_words(model, vocabulary, cleaned_texts, method_labels) -> Dict[s
         logger.info(f"  {i:2d}. {word:20s} coef={coef:+.4f} OR={odds_ratio:.4f}")
 
     all_top_vocab = [w for w, _ in positive_pairs] + [w for w, _ in negative_pairs]
-    word_freqs = calculate_word_frequencies(cleaned_texts, method_labels, all_top_vocab)
+    word_freqs = calculate_word_frequencies(X_combined, method_labels, all_top_vocab)
 
     return {
         'top_positive_words': [
@@ -435,10 +456,13 @@ def extract_top_words(model, vocabulary, cleaned_texts, method_labels) -> Dict[s
 
 def run_lr_analysis(train_texts: List[str], train_labels: List[int], train_methods: List[str],
                     val_texts: List[str], val_labels: List[int], val_methods: List[str],
-                    model_name: str = None) -> Dict[str, Any]:
+                    model_name: str = None, vectorizer: CountVectorizer = None) -> Dict[str, Any]:
     """
     Core LR workflow: vectorize, tune, train, extract words.
     Works for both global (model_name=None) and per-model analysis.
+
+    Args:
+        vectorizer: Optional pre-fitted vectorizer for shared vocabulary across methods.
     """
     prefix = f"[{model_name}] " if model_name else ""
 
@@ -447,10 +471,14 @@ def run_lr_analysis(train_texts: List[str], train_labels: List[int], train_metho
     combined_labels = train_labels + val_labels
     combined_methods = train_methods + val_methods
 
-    # Vectorization (fit on combined for consistent vocabulary)
-    logger.info(f"{prefix}Building vocabulary from combined data...")
-    vectorizer = CountVectorizer(max_features=MAX_FEATURES, min_df=500, binary=True)
-    vectorizer.fit(combined_texts)
+    # Vectorization (fit new or use shared)
+    if vectorizer is None:
+        logger.info(f"{prefix}Building vocabulary from combined data...")
+        vectorizer = CountVectorizer(max_features=MAX_FEATURES, min_df=MIN_DF, binary=True)
+        vectorizer.fit(combined_texts)
+    else:
+        logger.info(f"{prefix}Using shared vocabulary...")
+
     vocabulary = vectorizer.get_feature_names_out()
 
     X_train = vectorizer.transform(train_texts)
@@ -469,7 +497,7 @@ def run_lr_analysis(train_texts: List[str], train_labels: List[int], train_metho
 
     # Extract top words
     logger.info(f"{prefix}Extracting top words...")
-    top_words = extract_top_words(final_model, vocabulary, combined_texts, combined_methods)
+    top_words = extract_top_words(final_model, vocabulary, X_combined, combined_methods)
 
     # Build results
     results = {
@@ -477,9 +505,10 @@ def run_lr_analysis(train_texts: List[str], train_labels: List[int], train_metho
         'tuning_results': tuning_results,
         'final_model_performance': final_performance,
         'hyperparameters': {
-            'penalty': 'l2',
-            'solver': 'lbfgs',
+            'penalty': PENALTY,
+            'solver': SOLVER,
             'max_features': MAX_FEATURES,
+            'min_df': MIN_DF,
             'top_n_words': TOP_N_WORDS
         },
         'dataset_info': {
@@ -618,7 +647,7 @@ def run_per_model_analysis():
     logger.info("=" * 80)
 
 def run_per_model_method_analysis():
-    """Run separate LR analysis for each model-method combination."""
+    """Run separate LR analysis for each model-method combination with shared vocabulary per model."""
     logger.info("=" * 80)
     logger.info("PER-MODEL-METHOD LOGISTIC REGRESSION ANALYSIS")
     logger.info("=" * 80)
@@ -632,6 +661,25 @@ def run_per_model_method_analysis():
     OUTPUT_DIR_PER_MODEL_METHOD.mkdir(parents=True, exist_ok=True)
 
     for model_name in ALL_MODELS:
+        logger.info(f"\n{'='*80}")
+        logger.info(f"MODEL: {model_name}")
+        logger.info(f"{'='*80}")
+
+        # Load ALL methods for this model to fit shared vectorizer
+        logger.info(f"Loading all methods for {model_name} to build shared vocabulary...")
+        all_train_texts, _, _ = load_model_data(model_name, TRAIN_DATASETS)
+        all_val_texts, _, _ = load_model_data(model_name, VAL_DATASETS)
+
+        all_combined_texts = all_train_texts + all_val_texts
+
+        # Fit shared vectorizer on ALL methods combined
+        logger.info(f"Fitting shared vectorizer for {model_name} on all methods...")
+        shared_vectorizer = CountVectorizer(max_features=MAX_FEATURES, min_df=MIN_DF, binary=True)
+        shared_vectorizer.fit(all_combined_texts)
+        vocabulary = shared_vectorizer.get_feature_names_out()
+        logger.info(f"✓ Shared vocabulary size: {len(vocabulary):,} words")
+
+        # Now train separate LR for each method using shared vectorizer
         for method in PHRASES_TO_ANALYZE:
             logger.info(f"\n{'='*80}")
             logger.info(f"ANALYZING: {model_name} - {method}")
@@ -643,10 +691,11 @@ def run_per_model_method_analysis():
 
             logger.info(f"Train: {len(train_texts)} responses | Val: {len(val_texts)} responses")
 
-            # Run LR analysis
+            # Run LR analysis with shared vectorizer
             results = run_lr_analysis(train_texts, train_labels, train_methods,
                                      val_texts, val_labels, val_methods,
-                                     model_name=f"{model_name}_{method}")
+                                     model_name=f"{model_name}_{method}",
+                                     vectorizer=shared_vectorizer)
 
             # Save results
             output_file = OUTPUT_DIR_PER_MODEL_METHOD / f"{model_name}_{method}_vocab_lr.json"

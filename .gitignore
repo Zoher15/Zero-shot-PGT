@@ -13,5 +13,8 @@ results/vocab_lr_per_model/
 *.log
 *.pkl
 pgt_jobs.txt
+analysis_jobs.txt
 misc/
 CLAUDE.md
+results/aggregate_margins.csv
+results/aggregate_margins.txt

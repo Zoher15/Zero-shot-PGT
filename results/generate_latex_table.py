@@ -100,14 +100,17 @@ def format_f1_with_delta(f1: Optional[float], baseline_f1: Optional[float]) -> s
     if f1 is None:
         return "---"
 
-    # Convert to percentage
+    # Convert to percentage and round for display
     f1_pct = f1 * 100
-    f1_str = f"{f1_pct:.1f}"
+    f1_rounded = round(f1_pct, 1)
+    f1_str = f"{f1_rounded:.1f}"
 
     # Calculate delta if baseline exists
     if baseline_f1 is not None and baseline_f1 != f1:
         baseline_pct = baseline_f1 * 100
-        delta = f1_pct - baseline_pct
+        baseline_rounded = round(baseline_pct, 1)
+        # Calculate delta from rounded values for consistency with displayed numbers
+        delta = f1_rounded - baseline_rounded
         if abs(delta) >= 0.05:  # Only show delta if >= 0.05
             sign = "+" if delta > 0 else ""
             delta_str = f"{{\\scriptsize ({sign}{delta:.1f})}}"

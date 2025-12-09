@@ -227,9 +227,8 @@ def create_macro_f1_bar_plot(results: Dict, ci_data: Optional[Dict] = None):
                     dataset_values.append(f1_score)
 
         if dataset_values:
-            min_val = min(dataset_values)
             max_val = max(dataset_values)
-            y_min = np.floor(min_val / 5) * 5
+            y_min = 0  # Fixed at 0 for all subplots
             y_max = np.ceil(max_val / 5) * 5
         else:
             y_min, y_max = 0, 100
