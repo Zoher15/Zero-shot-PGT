@@ -203,3 +203,70 @@ def set_publication_style():
     plt.rcParams['ytick.major.width'] = 0.8
     plt.rcParams['xtick.minor.width'] = 0.5
     plt.rcParams['ytick.minor.width'] = 0.5
+
+
+def calculate_middle_column_center(left_margin, right_margin, wspace, n_columns=3):
+    """
+    Calculate the x-position of the center column in a multi-subplot figure.
+
+    Args:
+        left_margin: Left margin (e.g., 0.06 for 6%)
+        right_margin: Right margin (e.g., 0.99 for 1% from right)
+        wspace: Horizontal spacing between subplots (e.g., 0.15)
+        n_columns: Number of columns (default: 3)
+
+    Returns:
+        Float x-position of the middle column center in figure coordinates
+
+    Example:
+        middle_x = calculate_middle_column_center(0.06, 0.99, 0.15, n_columns=3)
+        fig.legend(..., bbox_to_anchor=(middle_x, 1.02))
+    """
+    available_width = right_margin - left_margin
+    subplot_width = available_width / (n_columns + (n_columns - 1) * wspace)
+    gap_width = wspace * subplot_width
+
+    # Center of middle column (for 3 columns, this is the 2nd column)
+    middle_col_idx = n_columns // 2
+    middle_column_center = left_margin + (middle_col_idx * (subplot_width + gap_width)) + (subplot_width / 2)
+
+    return middle_column_center
+
+
+def save_figure(fig, filepath, dpi=PUBLICATION_DPI):
+    """
+    Save figure in both PDF and PNG formats with exact dimensions.
+
+    Args:
+        fig: matplotlib figure object
+        filepath: Path object or string (without extension)
+        dpi: Resolution for PNG output (default: 300)
+
+    Returns:
+        Tuple of (pdf_path, png_path)
+
+    Example:
+        pdf_path, png_path = save_figure(fig, FIGURES_DIR / "my_plot")
+
+    Note:
+        Saves with exact figure dimensions (no bbox_inches='tight').
+        Ensure proper spacing with plt.subplots_adjust() or fig.tight_layout().
+    """
+    import matplotlib.pyplot as plt
+    from pathlib import Path
+
+    filepath = Path(filepath)
+
+    # Remove extension if present
+    if filepath.suffix in ['.pdf', '.png']:
+        filepath = filepath.with_suffix('')
+
+    pdf_path = filepath.with_suffix('.pdf')
+    png_path = filepath.with_suffix('.png')
+
+    # Save both formats with exact dimensions
+    plt.figure(fig.number)
+    plt.savefig(pdf_path, format='pdf', dpi=dpi)
+    plt.savefig(png_path, format='png', dpi=dpi)
+
+    return pdf_path, png_path

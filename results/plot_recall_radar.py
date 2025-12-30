@@ -42,7 +42,7 @@ import plot_config as pc
 MODEL_TO_PLOT = None  # None = all models, or specify: 'llava-onevision-7b', 'qwen25-vl-7b', 'llama32-vision-11b'
 
 # Figure dimensions (ACL format)
-FIGURE_HEIGHT = 2.5  # inches (adjusted for radar plots)
+FIGURE_HEIGHT = 2.6  # inches (adjusted for radar plots - circular shape needs less height)
 
 # Font size overrides for radar plots (smaller due to crowded space)
 RADAR_SPOKE_LABEL_SIZE = 6   # Generator labels on spokes (need smaller)
@@ -63,12 +63,12 @@ PHRASE_TO_METHOD = {
 RADIAL_TICKS = [0, 25, 50, 75, 100]  # Y-axis ticks (recall percentages)
 
 # Subplot spacing override for radar plots
-SUBPLOT_TOP = 0.92
-SUBPLOT_BOTTOM = 0.12
-SUBPLOT_LEFT = 0.05
-SUBPLOT_RIGHT = 0.98
+SUBPLOT_TOP = 0.90  # 10% top margin
+SUBPLOT_BOTTOM = 0.0  # 0% bottom margin
+SUBPLOT_LEFT = 0.05  # 5% left margin
+SUBPLOT_RIGHT = 0.95  # 5% right margin
 SUBPLOT_WSPACE_RADAR = 0.25  # Wider spacing for radar plots
-LEGEND_Y_POSITION_RADAR = 1.15  # Different from bar plots
+LEGEND_Y_POSITION_RADAR = 1.02  # Positioned slightly above plot axes
 
 # ============================================================================
 # HELPER FUNCTIONS
@@ -371,11 +371,13 @@ def create_recall_radar_plots(model: str, recall_data: Dict):
                        left=SUBPLOT_LEFT, right=SUBPLOT_RIGHT,
                        wspace=SUBPLOT_WSPACE_RADAR)
 
-    # Save figure
+    # Save figure in both PDF and PNG formats
     model_short = pc.MODEL_NAMES.get(model, model)
-    output_path = pc.FIGURES_DIR / f"recall_radar_{model_short.lower()}.pdf"
-    plt.savefig(output_path, format='pdf', bbox_inches='tight', dpi=pc.PUBLICATION_DPI)
-    print(f"✅ Radar plot saved to: {output_path}")
+    output_base = pc.FIGURES_DIR / f"recall_radar_{model_short.lower()}"
+    pdf_path, png_path = pc.save_figure(fig, output_base)
+    print(f"✅ Radar plots saved to:")
+    print(f"   PDF: {pdf_path}")
+    print(f"   PNG: {png_path}")
     print(f"   Model: {model_short}")
     print(f"   Figure size: {pc.ACL_FULL_WIDTH}\" × {FIGURE_HEIGHT}\" @ {pc.PUBLICATION_DPI} DPI (ACL format)")
 

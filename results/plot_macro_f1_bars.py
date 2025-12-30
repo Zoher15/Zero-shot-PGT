@@ -36,7 +36,7 @@ import plot_config as pc
 # ============================================================================
 
 # Figure dimensions (ACL format)
-FIGURE_HEIGHT = 2.25  # inches (adjusted aspect ratio for ACL)
+FIGURE_HEIGHT = 3.15  # inches (adjusted aspect ratio for ACL)
 
 # Evaluation parameters
 PHRASE_MODE = pc.DEFAULT_PHRASE_MODE  # Which phrase mode to load
@@ -46,7 +46,7 @@ N_RESPONSES = pc.DEFAULT_N_RESPONSES  # Which n value to load
 SHOW_CI = True  # Set to False to hide error bars
 
 # Output configuration
-OUTPUT_PATH = pc.FIGURES_DIR / "macro_f1_bars.pdf"
+OUTPUT_PATH = pc.FIGURES_DIR / "macro_f1_bars"
 
 # ============================================================================
 # HELPER FUNCTIONS
@@ -275,6 +275,26 @@ def create_macro_f1_bar_plot(results: Dict, ci_data: Optional[Dict] = None):
                 error_kw={'linewidth': pc.ERROR_BAR_WIDTH}
             )
 
+            # Add F1 value labels on top of bars (in white)
+            for model_idx, model in enumerate(pc.MODEL_ORDER):
+                f1_value = dataset_results[model][method]
+                if f1_value is not None:
+                    # Position just below CI cap (or at bar top if no CI)
+                    y_pos = f1_value
+                    if SHOW_CI and ci_data and ci_data[dataset][model][method]:
+                        y_pos = ci_data[dataset][model][method][1]  # Upper CI bound
+
+                    ax.text(
+                        x_positions[model_idx] + offset,
+                        y_pos - 2.5,  # Position below CI cap
+                        f'{f1_value:.0f}',
+                        ha='center',
+                        va='top',
+                        fontsize=pc.ANNOTATION_FONT_SIZE,
+                        color='white',
+                        fontweight='bold'
+                    )
+
             # Add improvement markers for s2
             if method == 's2':
                 for model_idx, model in enumerate(pc.MODEL_ORDER):
@@ -329,7 +349,17 @@ def create_macro_f1_bar_plot(results: Dict, ci_data: Optional[Dict] = None):
         if subplot_idx == 0:
             ax.set_ylabel('Macro F1 (\\%)', fontsize=pc.AXIS_LABEL_FONT_SIZE)
 
-    # Add shared legend at top (higher position since dataset labels moved down)
+    # Adjust layout with precise control over spacing
+    left_margin = 0.06
+    right_margin = 0.99
+    wspace = pc.SUBPLOT_WSPACE
+    plt.subplots_adjust(top=0.90, bottom=pc.SUBPLOT_BOTTOM, left=left_margin,
+                       right=right_margin, wspace=wspace)
+
+    # Calculate the center of the middle column for legend positioning
+    middle_column_center = pc.calculate_middle_column_center(left_margin, right_margin, wspace, n_columns=3)
+
+    # Add shared legend centered on middle column
     handles, labels = axes[0].get_legend_handles_labels()
     fig.legend(
         handles,
@@ -338,16 +368,14 @@ def create_macro_f1_bar_plot(results: Dict, ci_data: Optional[Dict] = None):
         ncol=n_methods,
         fontsize=pc.LEGEND_FONT_SIZE,
         frameon=False,
-        bbox_to_anchor=(0.5, pc.LEGEND_Y_POSITION)
+        bbox_to_anchor=(middle_column_center, 1.02)
     )
 
-    # Adjust layout with precise control over spacing
-    plt.subplots_adjust(top=pc.SUBPLOT_TOP, bottom=pc.SUBPLOT_BOTTOM, left=pc.SUBPLOT_LEFT,
-                       right=pc.SUBPLOT_RIGHT, wspace=pc.SUBPLOT_WSPACE)
-
-    # Save figure (300 DPI for publication quality)
-    plt.savefig(OUTPUT_PATH, format='pdf', bbox_inches='tight', dpi=pc.PUBLICATION_DPI)
-    print(f"✅ Plot saved to: {OUTPUT_PATH}")
+    # Save figure in both PDF and PNG formats (300 DPI for publication quality)
+    pdf_path, png_path = pc.save_figure(fig, OUTPUT_PATH)
+    print(f"✅ Plots saved to:")
+    print(f"   PDF: {pdf_path}")
+    print(f"   PNG: {png_path}")
     print(f"   Figure size: {pc.ACL_FULL_WIDTH}\" × {FIGURE_HEIGHT}\" @ {pc.PUBLICATION_DPI} DPI (ACL format)")
 
     plt.close()

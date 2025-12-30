@@ -59,6 +59,26 @@ VLM_MODELS = {
         'trust_remote_code': False,
         'prefill_mode': 'append',  # Append prefill after chat template
         'type': 'vllm'  # Local vLLM inference
+    },
+    'smolvlm-256m': {
+        'hf_path': "HuggingFaceTB/SmolVLM-256M-Instruct",
+        'tensor_parallel_size': 1,
+        'gpu_memory_utilization': 0.95,
+        'trust_remote_code': True,
+        'max_model_len': 8192,  # SmolVLM max context length
+        'prefill_mode': 'append',  # Append prefill after chat template
+        'type': 'vllm',  # Local vLLM inference
+        'use_v1_engine': False  # SmolVLM requires vLLM v0 engine
+    },
+    'smolvlm2-2.2b': {
+        'hf_path': "HuggingFaceTB/SmolVLM2-2.2B-Instruct",
+        'tensor_parallel_size': 1,
+        'gpu_memory_utilization': 0.95,  # Lower memory for 2.2B model
+        'trust_remote_code': True,
+        'max_model_len': 8192,  # SmolVLM max context length
+        'prefill_mode': 'append',  # Append prefill after chat template
+        'type': 'vllm',  # Local vLLM inference
+        'use_v1_engine': False  # SmolVLM requires vLLM v0 engine
     }
 }
 
