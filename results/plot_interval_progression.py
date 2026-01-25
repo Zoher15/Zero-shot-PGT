@@ -7,11 +7,13 @@ phrase prompting methods.
 
 Features:
 - 6 subplots (2 rows × 3 columns): Qwen and LLaVa across 3 datasets
-- 10 lines per subplot: baseline, cot (prefill/prompt), s2 (prefill/prompt)
-- Solid lines for avg_token_prob, dotted lines for macro_f1
-- Circle markers for prefill, square markers for prompt
+- 3 lines per subplot: baseline, prefill (avg of CoT+S2), prompt (avg of CoT+S2)
+- Values shown as percentages (multiplied by 100)
+- Circle markers for all lines
 - Simplified legend with caption note
 - Colorblind-friendly palette from plot_config
+- Y-axis: tight integer bounds (floor min, ceil max)
+- Efficient: data averaged once, reused for plotting and ylim computation
 
 Output: interval_progression.pdf in figures/
 """
@@ -21,7 +23,7 @@ from pathlib import Path
 import pandas as pd
 import matplotlib.pyplot as plt
 import numpy as np
-from matplotlib.ticker import MultipleLocator, FormatStrFormatter
+from matplotlib.ticker import MaxNLocator
 
 # Add parent directory to path for imports
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
@@ -64,70 +66,13 @@ def extract_intervals(df_row):
     return np.array(avg_probs), np.array(macro_f1s)
 
 # =============================================================================
-# PLOTTING FUNCTIONS
+# DATA EXTRACTION & AVERAGING
 # =============================================================================
 
-def plot_interval_progression(df, model_name, dataset_name, ax, metric='avg_prob'):
+def extract_averaged_data(df, model_name, dataset_name, metric='avg_prob'):
     """
-    Plot metric progression for one model/dataset combination.
-    Averages CoT and S2 for prefill and prompt modes.
-
-    Args:
-        df: Filtered dataframe with interval metrics
-        model_name: Model identifier (e.g., 'qwen25-vl-7b')
-        dataset_name: Dataset identifier (e.g., 'd3-2k')
-        ax: Matplotlib axis object
-        metric: 'avg_prob' or 'macro_f1'
-    """
-    x_values = [0, 25, 50, 75, 100]
-
-    # Filter data for this model and dataset
-    df_subset = df[(df['model'] == model_name) & (df['dataset'] == dataset_name)]
-
-    # Plot baseline (teal)
-    baseline_row = df_subset[(df_subset['phrase'] == 'baseline') & (df_subset['mode'] == 'prefill')]
-    if not baseline_row.empty:
-        avg_probs, macro_f1s = extract_intervals(baseline_row.iloc[0])
-        values = avg_probs if metric == 'avg_prob' else macro_f1s
-        ax.plot(x_values, values, color=BASELINE_COLOR, linestyle='-',
-               marker='o', markersize=pc.MARKER_SIZE, linewidth=pc.LINE_WIDTH)
-
-    # Plot averaged prefill (average of CoT and S2) - coral
-    cot_prefill = df_subset[(df_subset['phrase'] == 'cot') & (df_subset['mode'] == 'prefill')]
-    s2_prefill = df_subset[(df_subset['phrase'] == 's2') & (df_subset['mode'] == 'prefill')]
-
-    if not cot_prefill.empty and not s2_prefill.empty:
-        cot_avg_probs, cot_macro_f1s = extract_intervals(cot_prefill.iloc[0])
-        s2_avg_probs, s2_macro_f1s = extract_intervals(s2_prefill.iloc[0])
-
-        if metric == 'avg_prob':
-            values = (cot_avg_probs + s2_avg_probs) / 2
-        else:
-            values = (cot_macro_f1s + s2_macro_f1s) / 2
-
-        ax.plot(x_values, values, color=PREFILL_COLOR, linestyle='-',
-               marker='o', markersize=pc.MARKER_SIZE, linewidth=pc.LINE_WIDTH)
-
-    # Plot averaged prompt (average of CoT and S2) - purple
-    cot_prompt = df_subset[(df_subset['phrase'] == 'cot') & (df_subset['mode'] == 'prompt')]
-    s2_prompt = df_subset[(df_subset['phrase'] == 's2') & (df_subset['mode'] == 'prompt')]
-
-    if not cot_prompt.empty and not s2_prompt.empty:
-        cot_avg_probs, cot_macro_f1s = extract_intervals(cot_prompt.iloc[0])
-        s2_avg_probs, s2_macro_f1s = extract_intervals(s2_prompt.iloc[0])
-
-        if metric == 'avg_prob':
-            values = (cot_avg_probs + s2_avg_probs) / 2
-        else:
-            values = (cot_macro_f1s + s2_macro_f1s) / 2
-
-        ax.plot(x_values, values, color=PROMPT_COLOR, linestyle='-',
-               marker='o', markersize=pc.MARKER_SIZE, linewidth=pc.LINE_WIDTH)
-
-
-def compute_subplot_range(df, model_name, dataset_name, metric='avg_prob'):
-    """
-    Compute min/max range for a specific model/dataset/metric combination.
+    Extract and average data for plotting and ylim computation.
+    Returns baseline, prefill (avg of CoT+S2), and prompt (avg of CoT+S2) values.
 
     Args:
         df: Filtered dataframe with interval metrics
@@ -136,30 +81,109 @@ def compute_subplot_range(df, model_name, dataset_name, metric='avg_prob'):
         metric: 'avg_prob' or 'macro_f1'
 
     Returns:
-        Tuple of (y_min, y_max) with padding
+        Dict with 'baseline', 'prefill', 'prompt' keys, each containing array of 5 values
+        Returns None for missing data
     """
-    # Filter data for this specific model and dataset
     df_subset = df[(df['model'] == model_name) & (df['dataset'] == dataset_name)]
+    result = {}
 
+    # Extract baseline
+    baseline_row = df_subset[(df_subset['phrase'] == 'baseline') & (df_subset['mode'] == 'prefill')]
+    if not baseline_row.empty:
+        avg_probs, macro_f1s = extract_intervals(baseline_row.iloc[0])
+        values = avg_probs if metric == 'avg_prob' else macro_f1s
+        result['baseline'] = values * 100  # Convert to percentage
+    else:
+        result['baseline'] = None
+
+    # Extract and average prefill (CoT + S2)
+    cot_prefill = df_subset[(df_subset['phrase'] == 'cot') & (df_subset['mode'] == 'prefill')]
+    s2_prefill = df_subset[(df_subset['phrase'] == 's2') & (df_subset['mode'] == 'prefill')]
+    if not cot_prefill.empty and not s2_prefill.empty:
+        cot_avg_probs, cot_macro_f1s = extract_intervals(cot_prefill.iloc[0])
+        s2_avg_probs, s2_macro_f1s = extract_intervals(s2_prefill.iloc[0])
+        if metric == 'avg_prob':
+            values = (cot_avg_probs + s2_avg_probs) / 2
+        else:
+            values = (cot_macro_f1s + s2_macro_f1s) / 2
+        result['prefill'] = values * 100  # Convert to percentage
+    else:
+        result['prefill'] = None
+
+    # Extract and average prompt (CoT + S2)
+    cot_prompt = df_subset[(df_subset['phrase'] == 'cot') & (df_subset['mode'] == 'prompt')]
+    s2_prompt = df_subset[(df_subset['phrase'] == 's2') & (df_subset['mode'] == 'prompt')]
+    if not cot_prompt.empty and not s2_prompt.empty:
+        cot_avg_probs, cot_macro_f1s = extract_intervals(cot_prompt.iloc[0])
+        s2_avg_probs, s2_macro_f1s = extract_intervals(s2_prompt.iloc[0])
+        if metric == 'avg_prob':
+            values = (cot_avg_probs + s2_avg_probs) / 2
+        else:
+            values = (cot_macro_f1s + s2_macro_f1s) / 2
+        result['prompt'] = values * 100  # Convert to percentage
+    else:
+        result['prompt'] = None
+
+    return result
+
+
+# =============================================================================
+# PLOTTING FUNCTIONS
+# =============================================================================
+
+def plot_interval_progression(averaged_data, ax):
+    """
+    Plot metric progression using pre-computed averaged data.
+
+    Args:
+        averaged_data: Dict with 'baseline', 'prefill', 'prompt' keys (from extract_averaged_data)
+        ax: Matplotlib axis object
+    """
+    x_values = [0, 25, 50, 75, 100]
+
+    # Plot baseline
+    if averaged_data['baseline'] is not None:
+        ax.plot(x_values, averaged_data['baseline'], color=BASELINE_COLOR, linestyle='-',
+               marker='o', markersize=pc.MARKER_SIZE, linewidth=pc.LINE_WIDTH)
+
+    # Plot averaged prefill
+    if averaged_data['prefill'] is not None:
+        ax.plot(x_values, averaged_data['prefill'], color=PREFILL_COLOR, linestyle='-',
+               marker='o', markersize=pc.MARKER_SIZE, linewidth=pc.LINE_WIDTH)
+
+    # Plot averaged prompt
+    if averaged_data['prompt'] is not None:
+        ax.plot(x_values, averaged_data['prompt'], color=PROMPT_COLOR, linestyle='-',
+               marker='o', markersize=pc.MARKER_SIZE, linewidth=pc.LINE_WIDTH)
+
+
+def compute_subplot_range(averaged_data):
+    """
+    Compute min/max range from pre-computed averaged data.
+
+    Args:
+        averaged_data: Dict with 'baseline', 'prefill', 'prompt' keys (from extract_averaged_data)
+
+    Returns:
+        Tuple of (y_min, y_max) rounded to integers
+    """
     all_values = []
-    intervals = [0.00, 0.25, 0.50, 0.75, 1.00]
 
-    for _, row in df_subset.iterrows():
-        for interval in intervals:
-            val = row[f'{metric}_{interval:.2f}']
-            if pd.notna(val) and not np.isnan(val):
-                all_values.append(val)
+    # Collect all non-None values
+    for key in ['baseline', 'prefill', 'prompt']:
+        if averaged_data[key] is not None:
+            all_values.extend(averaged_data[key])
 
     if not all_values:
-        return (0, 1)
+        return (0, 100)
 
     min_val = np.min(all_values)
     max_val = np.max(all_values)
 
-    # Add 2.5% padding (exact, not rounded)
-    padding = (max_val - min_val) * 0.025
-    y_min = max(0, min_val - padding)
-    y_max = min(1, max_val + padding)
+    # Add 5% padding and round to nearest integer
+    padding = (max_val - min_val) * 0.05
+    y_min = max(0, round(min_val - padding))
+    y_max = min(100, round(max_val + padding))
 
     return (y_min, y_max)
 
@@ -212,16 +236,20 @@ def plot_model_figure(df, model_name, model_display_name, datasets, dataset_name
     print(f"  Row 0: {model_name} - Avg Token Probability")
     for col_idx, dataset in enumerate(datasets):
         ax = axes[0, col_idx]
-        plot_interval_progression(df, model_name, dataset, ax, metric='avg_prob')
 
-        # Compute tight y-limits for this specific subplot
-        y_min, y_max = compute_subplot_range(df, model_name, dataset, metric='avg_prob')
+        # Extract averaged data once
+        averaged_data = extract_averaged_data(df, model_name, dataset, metric='avg_prob')
+
+        # Plot using averaged data
+        plot_interval_progression(averaged_data, ax)
+
+        # Compute tight y-limits from same averaged data
+        y_min, y_max = compute_subplot_range(averaged_data)
 
         # Styling
         ax.set_xlim(0, 100)
         ax.set_ylim(y_min, y_max)
-        ax.yaxis.set_major_locator(MultipleLocator(0.1))
-        ax.yaxis.set_major_formatter(FormatStrFormatter('%.1f'))
+        ax.yaxis.set_major_locator(MaxNLocator(nbins=9, integer=True))
         ax.tick_params(axis='y', labelsize=pc.TICK_LABEL_FONT_SIZE)
         ax.grid(axis='both', linestyle=pc.GRID_LINESTYLE, alpha=pc.GRID_ALPHA,
                color=pc.GRID_COLOR, linewidth=pc.GRID_LINEWIDTH)
@@ -231,7 +259,7 @@ def plot_model_figure(df, model_name, model_display_name, datasets, dataset_name
 
         # Y-labels (only left column)
         if col_idx == 0:
-            ax.set_ylabel('Answer Confidence', fontsize=pc.AXIS_LABEL_FONT_SIZE)
+            ax.set_ylabel('Answer Confidence (\%)', fontsize=pc.AXIS_LABEL_FONT_SIZE)
 
         # Spines
         for spine in ax.spines.values():
@@ -244,16 +272,20 @@ def plot_model_figure(df, model_name, model_display_name, datasets, dataset_name
     print(f"  Row 1: {model_name} - Macro F1")
     for col_idx, dataset in enumerate(datasets):
         ax = axes[1, col_idx]
-        plot_interval_progression(df, model_name, dataset, ax, metric='macro_f1')
 
-        # Compute tight y-limits for this specific subplot
-        y_min, y_max = compute_subplot_range(df, model_name, dataset, metric='macro_f1')
+        # Extract averaged data once
+        averaged_data = extract_averaged_data(df, model_name, dataset, metric='macro_f1')
+
+        # Plot using averaged data
+        plot_interval_progression(averaged_data, ax)
+
+        # Compute tight y-limits from same averaged data
+        y_min, y_max = compute_subplot_range(averaged_data)
 
         # Styling
         ax.set_xlim(0, 100)
         ax.set_ylim(y_min, y_max)
-        ax.yaxis.set_major_locator(MultipleLocator(0.1))
-        ax.yaxis.set_major_formatter(FormatStrFormatter('%.1f'))
+        ax.yaxis.set_major_locator(MaxNLocator(nbins=9, integer=True))
         ax.set_xticks([0, 25, 50, 75, 100])
         ax.set_xticklabels(['0\%', '25\%', '50\%', '75\%', '100\%'], fontsize=pc.TICK_LABEL_FONT_SIZE)
         ax.tick_params(axis='y', labelsize=pc.TICK_LABEL_FONT_SIZE)
@@ -262,11 +294,11 @@ def plot_model_figure(df, model_name, model_display_name, datasets, dataset_name
 
         # Y-labels (only left column)
         if col_idx == 0:
-            ax.set_ylabel('Macro F1', fontsize=pc.AXIS_LABEL_FONT_SIZE)
+            ax.set_ylabel('Macro F1 (\%)', fontsize=pc.AXIS_LABEL_FONT_SIZE)
 
         # X-label (only bottom middle)
         if col_idx == 1:
-            ax.set_xlabel('Reasoning Interval', fontsize=pc.AXIS_LABEL_FONT_SIZE)
+            ax.set_xlabel('Partial-response Interval', fontsize=pc.AXIS_LABEL_FONT_SIZE)
 
         # Spines
         for spine in ax.spines.values():
@@ -280,7 +312,7 @@ def plot_model_figure(df, model_name, model_display_name, datasets, dataset_name
     right_margin = 0.98
     wspace = 0.15
     plt.subplots_adjust(top=0.90, bottom=0.10, left=left_margin, right=right_margin,
-                       hspace=0.05, wspace=wspace)
+                       hspace=0.1, wspace=wspace)
 
     # Calculate the center of the middle column for legend positioning
     middle_column_center = pc.calculate_middle_column_center(left_margin, right_margin, wspace, n_columns=3)
@@ -316,7 +348,7 @@ def main():
     print(f"✓ Loaded {len(df)} configurations from {csv_path}")
 
     datasets = ['d3-2k', 'df40-2k', 'genimage-2k']
-    dataset_names_display = ['D3', 'DF40', 'GenImage']
+    dataset_names_display = ['D3 (2k)', 'DF40 (2k)', 'GenImage (2k)']
 
     models = [
         ('qwen25-vl-7b', 'Qwen2.5-VL-7B'),
@@ -347,11 +379,13 @@ def main():
     print(f"Formats: PDF + PNG (300 DPI)")
     print(f"Size: {pc.ACL_FULL_WIDTH} × {FIGURE_HEIGHT} inches per figure")
     print(f"Subplots: 2 rows × 3 columns (6 total) per figure")
-    print(f"  Row 0: Avg Token Probability (D3, DF40, GenImage)")
-    print(f"  Row 1: Macro F1 (D3, DF40, GenImage)")
+    print(f"  Row 0: Avg Token Probability (%) (D3, DF40, GenImage)")
+    print(f"  Row 1: Macro F1 (%) (D3, DF40, GenImage)")
     print(f"Lines per subplot: 3 (baseline, prefill avg, prompt avg)")
     print(f"  Prefill/Prompt = average of CoT and S2")
-    print(f"Y-axis: Individual tight ranges per subplot (5% padding)")
+    print(f"Y-axis: Tight integer bounds per subplot (floor min, ceil max)")
+    print(f"Values shown as percentages (multiplied by 100)")
+    print(f"Data averaged once, reused for plotting and ylim computation")
     print(f"Tick label size: {pc.TICK_LABEL_FONT_SIZE}pt (both x and y axes)")
     print("="*80)
 

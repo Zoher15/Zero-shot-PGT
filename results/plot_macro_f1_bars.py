@@ -36,7 +36,7 @@ import plot_config as pc
 # ============================================================================
 
 # Figure dimensions (ACL format)
-FIGURE_HEIGHT = 3.15  # inches (adjusted aspect ratio for ACL)
+FIGURE_HEIGHT = 2.6  # inches (adjusted aspect ratio for ACL)
 
 # Evaluation parameters
 PHRASE_MODE = pc.DEFAULT_PHRASE_MODE  # Which phrase mode to load
@@ -353,7 +353,7 @@ def create_macro_f1_bar_plot(results: Dict, ci_data: Optional[Dict] = None):
     left_margin = 0.06
     right_margin = 0.99
     wspace = pc.SUBPLOT_WSPACE
-    plt.subplots_adjust(top=0.90, bottom=pc.SUBPLOT_BOTTOM, left=left_margin,
+    plt.subplots_adjust(top=0.88, bottom=0.09, left=left_margin,
                        right=right_margin, wspace=wspace)
 
     # Calculate the center of the middle column for legend positioning

@@ -1,4 +1,4 @@
-# Prefilled responses enhance zero-shot detection of AI-generated images
+# Prefill-Guided Thinking for zero-shot detection of AI-generated images
 
 [![Python 3.11](https://img.shields.io/badge/python-3.11-blue.svg)](https://www.python.org/downloads/release/python-3110/)
 [![PyTorch 2.7.1](https://img.shields.io/badge/PyTorch-2.7.1-ee4c2c.svg)](https://pytorch.org/)
@@ -11,8 +11,8 @@
 If you use this code in your research, please cite our paper:
 
 ```bibtex
-@misc{kachwala2025prefilledresponsesenhancezeroshot,
-      title={Prefilled responses enhance zero-shot detection of AI-generated images}, 
+@misc{kachwala2025prefillguidedthinking,
+      title={Prefill-Guided Thinking for zero-shot detection of AI-generated images}, 
       author={Zoher Kachwala and Danishjeet Singh and Danielle Yang and Filippo Menczer},
       year={2025},
       eprint={2506.11031},
@@ -41,16 +41,14 @@ This repository contains the evaluation system for our paper on using **Prefill-
 ## 🎯 What is Prefill-Guided Thinking?
 
 <p align="center">
-  <img src="images/elephant.png" alt="PGT methods comparison" width="800"/>
+  <img src="images/strawberry_PGT.png" alt="PGT applied to a Midjourney-generated strawberry" width="800"/>
 </p>
 
 Instead of asking a VLM to detect fake images directly, we **prefill** its response to guide its reasoning:
 
-- **(a) Baseline**: No guidance → incorrect classification
-- **(b) Chain-of-Thought**: Generic reasoning phrase → still incorrect
-- **(c) S2 (our method)**: Task-aligned phrase → correct classification ✓
-
-**The magic phrase:** *"Let's examine the style and the synthesis artifacts"*
+- **(a) Baseline**: Direct query → incorrect classification (real)
+- **(b) Chain-of-Thought**: *"Let's think step by step"* → still incorrect
+- **(c) S2 (our method)**: *"Let's examine the style and the synthesis artifacts"* → correct ✓
 
 This simple technique works across **3 VLMs** and **16 different image generators** spanning faces, objects, and natural scenes.
 
@@ -86,9 +84,9 @@ We evaluate on three diverse benchmarks:
 
 ## 🧪 Supported Models
 
-- **Qwen2.5-VL-7B** - Native dynamic-resolution ViT
-- **LLaVA-OneVision-7B** - GPT-trained multimodal model
-- **Llama-3.2-Vision-11B** - Vision adapter + Llama 3.1 LM
+- **Qwen2.5-VL-7B** — Dynamic-resolution Vision Transformer
+- **LLaVA-OneVision-7B** — Multimodal instruction-following model
+- **Llama-3.2-Vision-11B** — Vision adapter + Llama 3.1 LM
 
 All models use instruction-tuned variants via vLLM for efficient inference.
 
@@ -112,13 +110,29 @@ All models use instruction-tuned variants via vLLM for efficient inference.
   <img src="images/macro_f1_bars.png" alt="Macro F1 performance comparison" width="900"/>
 </p>
 
-**Detection performance (Macro F1) across models, datasets, and PGT variations.** Bars are annotated with relative improvements of S2 over the next best method and 95% confidence error bars from 10k bootstrap iterations.
+**Detection Macro F1 across models, datasets, and PGT variations.** Bars show relative improvement of S2 over the next best method, with 95% confidence intervals from 10k bootstrap iterations.
 
 <p align="center">
   <img src="images/recall_radar_llama.png" alt="Per-generator recall for Llama" width="900"/>
 </p>
 
-**Detection performance (Recall) for Llama across different datasets and their state-of-the-art synthetic image generators.** Similar figures for LLaVA and Qwen in the paper.
+**Detection recall (%) for Llama on each dataset, broken down by generator.** Similar figures for LLaVA and Qwen in the paper.
+
+### Interpretability: Confidence Progression
+
+To understand how prefills affect reasoning, we track answer confidence at five partial-response intervals (0–100% of sentences):
+
+<p align="center">
+  <img src="images/partial-responses.png" alt="Partial response intervals" width="700"/>
+</p>
+
+At each interval, we probe for the model's answer and confidence. The results reveal a striking pattern:
+
+<p align="center">
+  <img src="images/interval_progression_qwen25.png" alt="Confidence progression for Qwen" width="900"/>
+</p>
+
+**Evolution of answer confidence and Macro F1 across partial responses for Qwen.** Baseline queries trigger immediate high confidence despite poor detection — the model commits to an answer before examining the image. Prefills induce a confidence dip mid-response, with detection improving steadily as the response progresses.
 
 ---
 
