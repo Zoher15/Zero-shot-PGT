@@ -82,6 +82,14 @@ def validate_arguments(args: argparse.Namespace, logger: logging.Logger) -> None
     if args.phrase == 'baseline' and args.mode != 'prefill':
         logger.warning(f"⚠️  --mode is ignored for baseline phrase (all modes are equivalent). Output will be in baseline/ directory.")
 
+    # Block modes that require system messages for models that don't support them
+    model_config = config.get_model_config(args.model)
+    if not model_config.get('supports_system', True) and args.mode in ('instruct', 'prefill-pseudo-system'):
+        logger.error(f"Model '{args.model}' does not support system messages. "
+                     f"Mode '{args.mode}' is not available. "
+                     f"Use: prefill, prompt, or prefill-pseudo-user.")
+        sys.exit(1)
+
     # Check if dataset files exist
     try:
         dataset_config = config.get_dataset_config(args.dataset)

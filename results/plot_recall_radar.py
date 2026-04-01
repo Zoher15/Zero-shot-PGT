@@ -1,27 +1,24 @@
 """
-Recall Radar Plot Generator
+Recall Bar Plot Generator
 
-Creates publication-ready radar plots comparing recall performance across AI generators:
-- 3 datasets (D3, DF40, GenImage) as 3 side-by-side radar plots
+Creates publication-ready grouped bar plots comparing recall performance across AI generators:
+- 3 datasets (D3, DF40, GenImage) as 3 side-by-side subplots
 - Single model view (configurable)
-- 3 methods (baseline, cot, s2) as colored lines with shaded regions
+- 5 method-mode combinations as grouped vertical bars per generator
 
 Features:
 - Generator-level recall analysis (excludes 'real' images)
-- Transparent shaded regions for each method
-- Colorblind-friendly palette (matching bar chart)
+- Color encodes method (baseline/CoT/S2), hatching encodes mode (solid=prefill, hatched=prompt)
+- Colorblind-friendly palette
 - Shared legend across subplots
-- 0-100% scale for all radar plots
 
-Output: recall_radar_{model}.pdf in project root
+Output: recall_bars_{model}.pdf in figures/
 """
 
-import json
 import sys
 from pathlib import Path
-from typing import Dict, List, Any, Optional
+from typing import Dict
 from collections import defaultdict
-from math import pi
 
 import numpy as np
 import matplotlib.pyplot as plt
@@ -29,8 +26,6 @@ import matplotlib.pyplot as plt
 # Add parent directory to path for imports
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-# Import config and shared plotting config
-import config
 import helpers
 import plot_config as pc
 
@@ -39,36 +34,30 @@ import plot_config as pc
 # ============================================================================
 
 # Generate plots for all models (set to None to plot all, or specify a single model)
-MODEL_TO_PLOT = None  # None = all models, or specify: 'llava-onevision-7b', 'qwen25-vl-7b', 'llama32-vision-11b'
+MODEL_TO_PLOT = None  # None = all models, or specify a single model
 
-# Figure dimensions (ACL format)
-FIGURE_HEIGHT = 2.6  # inches (adjusted for radar plots - circular shape needs less height)
-
-# Font size overrides for radar plots (smaller due to crowded space)
-RADAR_SPOKE_LABEL_SIZE = 6   # Generator labels on spokes (need smaller)
-RADAR_TICK_SIZE = 5          # Radial tick labels (0%, 25%, etc.)
+# Figure dimensions
+FIGURE_HEIGHT = 2.6  # inches
 
 # Evaluation parameters
-PHRASE_MODE = pc.DEFAULT_PHRASE_MODE  # Which phrase mode to load
-N_RESPONSES = pc.DEFAULT_N_RESPONSES  # Which n value to load
+N_RESPONSES = pc.DEFAULT_N_RESPONSES
 
-# Phrase mapping (internal phrase names to methods)
-PHRASE_TO_METHOD = {
-    'baseline': 'baseline',
-    'cot': 'cot',
-    's2': 's2'
-}
+# 7 bar slots per generator: (phrase, mode)
+BAR_SLOTS = [
+    ('baseline', 'prefill'),                # single baseline bar (mode ignored)
+    ('cot',      'prompt'),
+    ('cot',      'prefill-pseudo-system'),
+    ('cot',      'prefill'),
+    ('s2',       'prompt'),
+    ('s2',       'prefill-pseudo-system'),
+    ('s2',       'prefill'),
+]
 
-# Radar plot configuration
-RADIAL_TICKS = [0, 25, 50, 75, 100]  # Y-axis ticks (recall percentages)
+# Bar width for 5 bars per generator group
+BAR_WIDTH = 0.17
 
-# Subplot spacing override for radar plots
-SUBPLOT_TOP = 0.90  # 10% top margin
-SUBPLOT_BOTTOM = 0.0  # 0% bottom margin
-SUBPLOT_LEFT = 0.05  # 5% left margin
-SUBPLOT_RIGHT = 0.95  # 5% right margin
-SUBPLOT_WSPACE_RADAR = 0.25  # Wider spacing for radar plots
-LEGEND_Y_POSITION_RADAR = 1.02  # Positioned slightly above plot axes
+# Output path
+OUTPUT_PATH = pc.FIGURES_DIR / "recall_bars"
 
 # ============================================================================
 # HELPER FUNCTIONS
@@ -189,208 +178,197 @@ def compute_recall_per_subset(subset_counts: Dict[str, Dict[str, int]]) -> Dict[
     return recall_scores
 
 
-def collect_recall_data_for_model(model: str) -> Dict[str, Dict[str, Dict[str, float]]]:
+def collect_recall_data_for_model(model: str) -> Dict[str, Dict]:
     """
-    Collect recall data for all datasets and methods for a given model.
+    Collect recall data for all datasets and bar slots for a given model.
 
     Args:
         model: Model name
 
     Returns:
-        Nested dict: {dataset: {method: {subset: recall_percentage}}}
+        Nested dict: {dataset: {(method,mode): {subset: recall_pct}, '_generators': [sorted list]}}
     """
     results = {}
 
     for dataset in pc.DATASET_ORDER:
         results[dataset] = {}
+        all_subsets = set()
 
-        for method, phrase in PHRASE_TO_METHOD.items():
+        for method, mode in BAR_SLOTS:
             try:
                 subset_counts = load_reasoning_json_with_subsets(
-                    dataset, model, phrase, PHRASE_MODE, N_RESPONSES
+                    dataset, model, method, mode, N_RESPONSES
                 )
                 recall_scores = compute_recall_per_subset(subset_counts)
-
-                # Filter out 'real' and 'unknown' subsets
-                filtered_scores = {k: v for k, v in recall_scores.items()
-                                  if k not in ['real', 'unknown']}
-
-                results[dataset][method] = filtered_scores
-
+                filtered = {k: v for k, v in recall_scores.items()
+                           if k not in ['real', 'unknown']}
+                results[dataset][(method, mode)] = filtered
+                all_subsets.update(filtered.keys())
             except Exception as e:
-                print(f"Warning: Could not load data for {dataset}/{model}/{phrase}: {e}")
-                results[dataset][method] = {}
+                print(f"Warning: Could not load {dataset}/{model}/{method}/{mode}: {e}")
+                results[dataset][(method, mode)] = {}
+
+        results[dataset]['_generators'] = sorted(list(all_subsets))
 
     return results
 
 
-def create_radar_plot(ax, data: Dict[str, List[float]], labels: List[str],
-                     title: str, show_ylabel: bool = False):
+def create_recall_bar_plots(model: str, recall_data: Dict):
     """
-    Create a single radar plot.
+    Create a single-axis bar plot with all generators on one x-axis,
+    separated by vertical lines and dataset labels.
 
-    Args:
-        ax: Matplotlib axis
-        data: Dict mapping method -> list of recall values
-        labels: List of generator labels (for spokes)
-        title: Subplot title
-        show_ylabel: Whether to show y-axis label
+    Bar layout per generator:
+      baseline | cot-prompt cot-prefill | s2-prompt s2-prefill
     """
-    num_vars = len(labels)
+    import matplotlib.patches as mpatches
 
-    if num_vars == 0:
-        ax.text(0.5, 0.5, 'No data', ha='center', va='center', transform=ax.transAxes)
-        ax.text(0.5, -0.15, title, ha='center', va='top',
-               transform=ax.transAxes, fontsize=pc.TITLE_FONT_SIZE)
-        return
+    fig, ax = plt.subplots(1, 1, figsize=(pc.ACL_FULL_WIDTH, FIGURE_HEIGHT))
 
-    # Compute angle for each axis
-    angles = [n / float(num_vars) * 2 * pi for n in range(num_vars)]
-    angles += angles[:1]  # Complete the circle
+    n_bars = len(BAR_SLOTS)  # 5
+    bar_width = BAR_WIDTH
+    dataset_gap = 0.4  # extra gap between dataset groups
 
-    # Initialize polar plot
-    ax = plt.subplot(ax.get_subplotspec(), polar=True)
+    # Build a flat list of generators across all datasets, tracking boundaries
+    all_gen_keys = []      # raw generator keys
+    all_gen_labels = []    # display labels
+    all_gen_datasets = []  # which dataset each belongs to
+    dataset_boundaries = []  # x positions of boundaries between datasets
+    x_positions = []
+    current_x = 0
 
-    # Draw one axis per variable and add labels
-    ax.set_theta_offset(pi / 2)
-    ax.set_theta_direction(-1)
-    ax.set_xticks(angles[:-1])
-    ax.set_xticklabels(labels, fontsize=RADAR_SPOKE_LABEL_SIZE)
+    # Generator spacing: 5 bars + 1 bar gap between groups
+    gen_spacing = n_bars * bar_width + dataset_gap
 
-    # Find max value across all methods for this dataset
-    max_value = 0
-    for method_values in data.values():
-        if method_values:
-            max_value = max(max_value, max(method_values))
+    for ds_idx, dataset in enumerate(pc.DATASET_ORDER):
+        generators = recall_data.get(dataset, {}).get('_generators', [])
 
-    # Round max_value up to nearest 20
-    y_max = np.ceil(max_value / 20) * 20
-    if y_max == 0:
-        y_max = 100  # Fallback
+        if ds_idx > 0 and generators:
+            current_x += dataset_gap  # gap between datasets
 
-    # Generate ticks at every 20% interval
-    radial_ticks = list(range(0, int(y_max) + 1, 20))
+        boundary_start = current_x
 
-    # Set y-axis (radial) limits and ticks
+        for gen in generators:
+            x_positions.append(current_x)
+            all_gen_keys.append((dataset, gen))
+            all_gen_labels.append(pc.GENERATOR_NAMES.get(gen, gen))
+            all_gen_datasets.append(dataset)
+            current_x += gen_spacing
+
+        if generators:
+            last_gen_x = current_x - gen_spacing  # position of last generator
+            dataset_boundaries.append({
+                'dataset': dataset,
+                'start': boundary_start - gen_spacing / 2,
+                'end': last_gen_x + gen_spacing / 2,
+                'center': (boundary_start + last_gen_x) / 2,
+            })
+
+    x_positions = np.array(x_positions)
+
+    # Plot bars
+    for bar_idx, (method, mode) in enumerate(BAR_SLOTS):
+        offset = (bar_idx - (n_bars - 1) / 2) * bar_width
+
+        values = []
+        for dataset, gen in all_gen_keys:
+            slot_data = recall_data.get(dataset, {}).get((method, mode), {})
+            values.append(slot_data.get(gen, 0))
+
+        alpha = pc.MODE_ALPHAS[mode] if method != 'baseline' else 1.0
+        import matplotlib.colors as mcolors
+        rgba = list(mcolors.to_rgba(pc.METHOD_COLORS[method]))
+        rgba[3] = alpha
+
+        ax.bar(
+            x_positions + offset,
+            values,
+            bar_width,
+            color=rgba,
+            edgecolor='black',
+            linewidth=pc.BAR_EDGE_WIDTH,
+        )
+
+    # X-axis: generator labels
+    ax.set_xticks(x_positions)
+    ax.set_xticklabels(all_gen_labels, fontsize=pc.TICK_LABEL_FONT_SIZE,
+                       rotation=45, ha='right')
+
+    # Set xlim so outer padding matches the separator-to-bar-edge gap
+    # Separator is at (1 + dataset_gap) / 2 from each adjacent bar center
+    # so outer edge should be the same distance from the first/last bar center
+    edge_pad = (gen_spacing + dataset_gap) / 2
+    ax.set_xlim(x_positions[0] - edge_pad, x_positions[-1] + edge_pad)
+
+    # Dataset separator lines (only between datasets, not at edges) and labels
+    for i, boundary in enumerate(dataset_boundaries):
+        # Vertical separator line only between datasets (not before first or after last)
+        if i > 0:
+            midpoint = (dataset_boundaries[i - 1]['end'] + boundary['start']) / 2
+            ax.axvline(x=midpoint, color='gray', linewidth=0.8,
+                      linestyle='-', alpha=0.5, zorder=0)
+
+        # Dataset label at top of plot area
+        ax.text(boundary['center'], 1.02, pc.DATASET_NAMES[boundary['dataset']],
+               ha='center', va='bottom', fontsize=pc.TITLE_FONT_SIZE,
+               transform=ax.get_xaxis_transform())
+
+    # Y-axis
+    all_values = [v for ds_data in recall_data.values()
+                 for slot in BAR_SLOTS
+                 for v in ds_data.get(slot, {}).values()]
+    y_max = np.ceil(max(all_values) / 10) * 10 if all_values else 100
     ax.set_ylim(0, y_max)
-    ax.set_yticks(radial_ticks)
-    ax.set_yticklabels([f"{int(t)}%" for t in radial_ticks], fontsize=RADAR_TICK_SIZE)
-    ax.yaxis.set_tick_params(pad=0.5)
+    ax.set_ylabel('Recall (\\%)', fontsize=pc.AXIS_LABEL_FONT_SIZE)
+    ax.tick_params(axis='y', labelsize=pc.TICK_LABEL_FONT_SIZE)
+    ax.grid(axis='y', linestyle='-', alpha=pc.GRID_ALPHA, color=pc.GRID_COLOR)
 
-    # Grid
-    ax.grid(color=pc.GRID_COLOR, linestyle=pc.GRID_LINESTYLE, linewidth=pc.GRID_LINEWIDTH, alpha=pc.GRID_ALPHA)
+    for spine in ax.spines.values():
+        spine.set_edgecolor('gray')
+        spine.set_linewidth(0.5)
 
-    # Plot data for each method
-    for method in pc.METHOD_ORDER:
-        if method not in data or not data[method]:
-            continue
+    # Legend: color patches for methods + mode circles
+    from matplotlib.lines import Line2D
 
-        values = data[method]
-        values += values[:1]  # Complete the circle
+    method_handles = [
+        mpatches.Patch(facecolor=pc.METHOD_COLORS[m], edgecolor='black',
+                       linewidth=0.5, label=pc.METHOD_NAMES[m])
+        for m in pc.METHOD_ORDER if m != 'baseline'
+    ]
+    none_handle = Line2D([0], [0], marker='s', color='w', markerfacecolor='white',
+                         markeredgecolor='black', markeredgewidth=0.5,
+                         markersize=7, label='None')
+    mode_handles = []
+    for mode in ['prompt', 'prefill-pseudo-system', 'prefill']:
+        rgba = list(mcolors.to_rgba('gray'))
+        rgba[3] = pc.MODE_ALPHAS[mode]
+        mode_handles.append(
+            Line2D([0], [0], marker='s', color='w', markerfacecolor=rgba,
+                   markeredgecolor='black', markeredgewidth=0.5,
+                   markersize=7, label=pc.MODE_NAMES[mode])
+        )
+    all_handles = method_handles + [none_handle] + mode_handles
 
-        # Plot line
-        ax.plot(angles, values, 'o-', linewidth=pc.LINE_WIDTH,
-               color=pc.METHOD_COLORS[method], label=pc.METHOD_NAMES[method],
-               markersize=pc.MARKER_SIZE)
+    plt.subplots_adjust(top=0.87, bottom=0.13, left=0.075, right=0.99)
 
-        # Fill area
-        ax.fill(angles, values, alpha=pc.FILL_ALPHA, color=pc.METHOD_COLORS[method])
+    fig.legend(
+        handles=all_handles,
+        loc='upper center',
+        ncol=len(all_handles),
+        fontsize=pc.LEGEND_FONT_SIZE,
+        frameon=False,
+        bbox_to_anchor=(0.5, 1.02)
+    )
 
-    # Title at top under legend
-    ax.text(0.5, 1.20, title, ha='center', va='bottom',
-           transform=ax.transAxes, fontsize=pc.TITLE_FONT_SIZE)
-
-
-def create_recall_radar_plots(model: str, recall_data: Dict):
-    """
-    Create 3 radar plots (one per dataset) for a given model.
-
-    Args:
-        model: Model name
-        recall_data: Nested dict {dataset: {method: {subset: recall}}}
-    """
-    fig = plt.figure(figsize=(pc.ACL_FULL_WIDTH, FIGURE_HEIGHT))
-
-    # Track S2 improvements across all datasets/generators
-    s2_improvements = []  # List of (improvement, dataset, generator) tuples
-
-    # Create 3 subplots
-    axes = []
-    for i in range(3):
-        ax = fig.add_subplot(1, 3, i + 1, projection='polar')
-        axes.append(ax)
-
-    for subplot_idx, dataset in enumerate(pc.DATASET_ORDER):
-        ax = axes[subplot_idx]
-        dataset_data = recall_data.get(dataset, {})
-
-        # Get all unique subsets across methods
-        all_subsets = set()
-        for method_data in dataset_data.values():
-            all_subsets.update(method_data.keys())
-
-        # Sort subsets for consistent ordering
-        sorted_subsets = sorted(list(all_subsets))
-
-        # Map subsets to display names
-        subset_labels = [pc.GENERATOR_NAMES.get(s, s.upper()).lower() for s in sorted_subsets]
-
-        # Prepare data for radar plot
-        plot_data = {}
-        for method in pc.METHOD_ORDER:
-            method_scores = dataset_data.get(method, {})
-            # Ensure all subsets have values (use 0 if missing)
-            values = [method_scores.get(s, 0) for s in sorted_subsets]
-            plot_data[method] = values
-
-        # Compute S2 improvements for this dataset
-        for generator in sorted_subsets:
-            baseline_recall = dataset_data.get('baseline', {}).get(generator, 0)
-            cot_recall = dataset_data.get('cot', {}).get(generator, 0)
-            s2_recall = dataset_data.get('s2', {}).get(generator, 0)
-
-            next_best = max(baseline_recall, cot_recall)
-            if next_best > 0:
-                rel_improvement = ((s2_recall - next_best) / next_best) * 100
-                s2_improvements.append((rel_improvement, dataset, generator))
-
-        # Create radar plot
-        title = pc.DATASET_NAMES[dataset]
-        create_radar_plot(ax, plot_data, subset_labels, title,
-                         show_ylabel=(subplot_idx == 0))
-
-    # Add shared legend
-    handles, labels = axes[0].get_legend_handles_labels()
-    if handles:
-        fig.legend(handles, labels, loc='upper center', ncol=len(pc.METHOD_ORDER),
-                  fontsize=pc.LEGEND_FONT_SIZE, frameon=False,
-                  bbox_to_anchor=(0.5, LEGEND_Y_POSITION_RADAR))
-
-    # Adjust layout
-    plt.subplots_adjust(top=SUBPLOT_TOP, bottom=SUBPLOT_BOTTOM,
-                       left=SUBPLOT_LEFT, right=SUBPLOT_RIGHT,
-                       wspace=SUBPLOT_WSPACE_RADAR)
-
-    # Save figure in both PDF and PNG formats
+    # Save
     model_short = pc.MODEL_NAMES.get(model, model)
-    output_base = pc.FIGURES_DIR / f"recall_radar_{model_short.lower()}"
+    output_base = pc.FIGURES_DIR / f"recall_bars_{model_short.lower()}"
     pdf_path, png_path = pc.save_figure(fig, output_base)
-    print(f"✅ Radar plots saved to:")
+    print(f"Recall bar plots saved to:")
     print(f"   PDF: {pdf_path}")
     print(f"   PNG: {png_path}")
     print(f"   Model: {model_short}")
-    print(f"   Figure size: {pc.ACL_FULL_WIDTH}\" × {FIGURE_HEIGHT}\" @ {pc.PUBLICATION_DPI} DPI (ACL format)")
-
-    # Print S2 improvement statistics
-    if s2_improvements:
-        min_improvement = min(s2_improvements, key=lambda x: x[0])
-        max_improvement = max(s2_improvements, key=lambda x: x[0])
-        mean_value = np.mean([x[0] for x in s2_improvements])
-
-        print(f"\n📈 S2 Relative Improvement over next best (baseline/CoT):")
-        print(f"   Min: {min_improvement[0]:+.2f}% ({pc.DATASET_NAMES[min_improvement[1]]}, {pc.GENERATOR_NAMES.get(min_improvement[2], min_improvement[2])})")
-        print(f"   Max: {max_improvement[0]:+.2f}% ({pc.DATASET_NAMES[max_improvement[1]]}, {pc.GENERATOR_NAMES.get(max_improvement[2], max_improvement[2])})")
-        print(f"   Mean: {mean_value:+.2f}%")
+    print(f"   Figure size: {pc.ACL_FULL_WIDTH}\" x {FIGURE_HEIGHT}\" @ {pc.PUBLICATION_DPI} DPI")
 
     plt.close()
 
@@ -404,8 +382,8 @@ def main():
     # Set publication-quality style (LaTeX rendering)
     pc.set_publication_style()
 
-    print("📊 Generating Recall Radar Plots...")
-    print(f"Configuration: mode={PHRASE_MODE}, n={N_RESPONSES}")
+    print("Generating Recall Bar Plots...")
+    print(f"Configuration: n={N_RESPONSES}")
 
     # Determine which models to plot
     models_to_plot = [MODEL_TO_PLOT] if MODEL_TO_PLOT else pc.MODEL_ORDER
@@ -417,12 +395,12 @@ def main():
         print(f"{'='*80}")
 
         # Collect recall data
-        print("📁 Loading reasoning data and computing recall per generator...")
+        print("Loading reasoning data and computing recall per generator...")
         recall_data = collect_recall_data_for_model(model)
 
         # Create plots
-        print("🎨 Creating radar plots...")
-        create_recall_radar_plots(model, recall_data)
+        print("Creating bar plots...")
+        create_recall_bar_plots(model, recall_data)
 
     print("\n✅ Done!")
 

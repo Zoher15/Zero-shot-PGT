@@ -13,8 +13,8 @@ Approach:
 4. Track token probabilities and compute per-interval metrics
 
 Outputs:
-- reasoning_{timestamp}_with_probs.json: Per-example class probabilities at each interval
-- performance_{timestamp}_with_probs.json: Aggregate metrics (accuracy, F1, confusion matrix) per interval
+- reasoning_{timestamp}_with_conf.json: Per-example class probabilities at each interval
+- performance_{timestamp}_with_conf.json: Aggregate metrics (accuracy, F1, confusion matrix) per interval
 
 Usage:
     python add_class_probs_to_reasoning.py --model qwen25-vl-7b --dataset df40 --phrase cot
@@ -493,7 +493,7 @@ def save_extended_files(reasoning_data: List[Dict], interval_statistics: Dict[st
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
 
     # Save extended reasoning JSON
-    reasoning_path = output_dir / f"reasoning_{timestamp}_with_probs.json"
+    reasoning_path = output_dir / f"reasoning_{timestamp}_with_conf.json"
     with open(reasoning_path, 'w', encoding='utf-8') as f:
         json.dump(reasoning_data, f, indent=2)
     logger.info(f"💾 Saved extended reasoning JSON: {reasoning_path}")
@@ -508,7 +508,7 @@ def save_extended_files(reasoning_data: List[Dict], interval_statistics: Dict[st
         'intervals': interval_statistics
     }
 
-    performance_path = output_dir / f"performance_{timestamp}_with_probs.json"
+    performance_path = output_dir / f"performance_{timestamp}_with_conf.json"
     with open(performance_path, 'w', encoding='utf-8') as f:
         json.dump(performance_data, f, indent=2)
     logger.info(f"💾 Saved performance with interval statistics: {performance_path}")

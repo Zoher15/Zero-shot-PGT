@@ -9,7 +9,7 @@ from pathlib import Path
 # COLORS (Colorblind-friendly palette)
 # =============================================================================
 
-BASELINE_COLOR = "#2A9D8F"  # Teal
+BASELINE_COLOR = "#FFFFFF"  # White
 COT_COLOR = "#E76F51"       # Coral/Clay
 S2_COLOR = "#7F4CA5"        # Purple
 
@@ -19,11 +19,11 @@ S2_COLOR = "#7F4CA5"        # Purple
 
 MODEL_NAMES = {
     'llava-onevision-7b': 'LLaVA',
-    'qwen25-vl-7b': 'Qwen',
-    'llama32-vision-11b': 'Llama'
+    'qwen25-vl-7b': 'Qwen2.5',
+    'qwen3-vl-8b': 'Qwen3'
 }
 
-MODEL_ORDER = ['llava-onevision-7b', 'qwen25-vl-7b', 'llama32-vision-11b']
+MODEL_ORDER = ['llava-onevision-7b', 'qwen25-vl-7b', 'qwen3-vl-8b']
 
 # =============================================================================
 # DATASET CONFIGURATION
@@ -42,7 +42,7 @@ DATASET_ORDER = ['d3', 'df40', 'genimage']
 # =============================================================================
 
 METHOD_NAMES = {
-    'baseline': 'Baseline',
+    'baseline': 'None',
     'cot': 'CoT',
     's2': 'S2'
 }
@@ -56,17 +56,41 @@ METHOD_COLORS = {
 }
 
 # =============================================================================
-# FIGURE SETTINGS (ACL paper format)
+# MODE CONFIGURATION (for plots comparing prefill vs prompt)
 # =============================================================================
 
-# ACL page dimensions (measured from acl.sty with 2.5cm margins)
-# Full text width: 455.24pt = 6.30 inches
-# Column width: 219.09pt = 3.03 inches
-# Column separation: 17.07pt = 0.24 inches
+MODE_ORDER = ['prefill', 'prompt', 'prefill-pseudo-system']
+MODE_NAMES = {'prefill': 'Prefill', 'prompt': 'Prompt', 'prefill-pseudo-system': 'Pseudo'}
+MODE_ALPHAS = {'prefill': 1.0, 'prompt': 0.50, 'prefill-pseudo-system': 0.75}
 
-# Figure widths (rounded for convenience)
-ACL_FULL_WIDTH = 6.3      # inches (2-column span, exact match)
-ACL_COLUMN_WIDTH = 3.0    # inches (1-column, slightly conservative)
+# Mode colors (Paul Tol sunset palette, all support white text)
+MODE_COLORS = {
+    'none': '#364B9A',                    # Dark blue (baseline/no mode)
+    'prompt': '#6EA6CD',                  # Medium blue
+    'prefill-pseudo-system': '#F67E4B',   # Burnt orange
+    'prefill': '#A50026',                 # Dark red
+}
+
+# Bar slots: the 5 bars per model group (baseline has no mode split)
+BAR_SLOTS = [
+    ('baseline', 'prefill'),   # single baseline bar (mode ignored)
+    ('cot', 'prompt'),
+    ('cot', 'prefill'),
+    ('s2', 'prompt'),
+    ('s2', 'prefill'),
+]
+
+# =============================================================================
+# FIGURE SETTINGS (COLM paper format)
+# =============================================================================
+
+# COLM page dimensions
+# \textwidth = 5.5 inches (width of the text/line)
+# \textheight = 9.0 inches (height of the text area)
+
+# Figure widths
+ACL_FULL_WIDTH = 5.5      # inches (\textwidth)
+ACL_COLUMN_WIDTH = 2.625  # inches (approximate single column)
 
 # Aliases for backward compatibility
 FIGURE_WIDTH_2COL = ACL_FULL_WIDTH
@@ -93,8 +117,8 @@ DEFAULT_N_RESPONSES = 1
 TITLE_FONT_SIZE = 8         # Subplot/panel titles (D3, DF40, GenImage)
 LEGEND_FONT_SIZE = 8        # Legend text
 AXIS_LABEL_FONT_SIZE = 8    # Axis labels (e.g., "Macro F1 (%)", "Odds Change (%)")
-TICK_LABEL_FONT_SIZE = 7    # Tick labels (numbers/categories on axes)
-ANNOTATION_FONT_SIZE = 6    # Small annotations (improvement markers, etc.)
+TICK_LABEL_FONT_SIZE = 6    # Tick labels (numbers/categories on axes)
+ANNOTATION_FONT_SIZE = 5    # Small annotations (improvement markers, etc.)
 
 # =============================================================================
 # PLOT STYLING (consistent across all figures)
@@ -103,7 +127,7 @@ ANNOTATION_FONT_SIZE = 6    # Small annotations (improvement markers, etc.)
 # Bar plot styling
 BAR_WIDTH = 0.25          # Width of individual bars in grouped bar charts
 BAR_HEIGHT = 0.6          # Height of horizontal bars
-BAR_EDGE_WIDTH = 0.5      # Width of bar borders
+BAR_EDGE_WIDTH = 0.25     # Width of bar borders
 
 # Error bar styling
 ERROR_BAR_WIDTH = 0.05    # Width of error bar lines

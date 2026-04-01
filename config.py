@@ -27,8 +27,8 @@ LOGS_DIR = PROJECT_ROOT / "logs"
 # DATASET IMAGE DIRECTORIES
 # =============================================================================
 
-DF40_IMAGE_DIR = Path("/data/df40/")
-GENIMAGE_IMAGE_DIR = Path("/data/genimage/")
+DF40_IMAGE_DIR = Path("/data3/singhdan/DF40/")
+GENIMAGE_IMAGE_DIR = Path("/data3/singhdan/genimage/")
 D3_IMAGE_DIR = DATA_DIR / "d3" / "images"  # D3 images downloaded from HuggingFace
 # =============================================================================
 # MODEL CONFIGURATIONS
@@ -38,7 +38,7 @@ VLM_MODELS = {
     'qwen25-vl-7b': {
         'hf_path': "Qwen/Qwen2.5-VL-7B-Instruct",
         'tensor_parallel_size': 1,
-        'gpu_memory_utilization': 0.95,
+        'gpu_memory_utilization': 0.92,
         'trust_remote_code': True,
         'prefill_mode': 'append',  # Append prefill after chat template
         'type': 'vllm'  # Local vLLM inference
@@ -46,39 +46,43 @@ VLM_MODELS = {
     'llava-onevision-7b': {
         'hf_path': "llava-hf/llava-onevision-qwen2-7b-ov-chat-hf",
         'tensor_parallel_size': 1,
-        'gpu_memory_utilization': 0.95,
+        'gpu_memory_utilization': 0.92,
         'trust_remote_code': True,
         'prefill_mode': 'append',  # Append prefill after chat template
         'type': 'vllm'  # Local vLLM inference
     },
-    'llama32-vision-11b': {
-        'hf_path': "meta-llama/Llama-3.2-11B-Vision-Instruct",
+    'qwen3-vl-8b': {
+        'hf_path': "Qwen/Qwen3-VL-8B-Instruct",
         'tensor_parallel_size': 1,
-        'gpu_memory_utilization': 0.95,
-        'max_num_seqs': 100,  # Required for 6404 image tokens
-        'trust_remote_code': False,
-        'prefill_mode': 'append',  # Append prefill after chat template
-        'type': 'vllm'  # Local vLLM inference
-    },
-    'smolvlm-256m': {
-        'hf_path': "HuggingFaceTB/SmolVLM-256M-Instruct",
-        'tensor_parallel_size': 1,
-        'gpu_memory_utilization': 0.95,
+        'gpu_memory_utilization': 0.92,
         'trust_remote_code': True,
-        'max_model_len': 8192,  # SmolVLM max context length
-        'prefill_mode': 'append',  # Append prefill after chat template
-        'type': 'vllm',  # Local vLLM inference
-        'use_v1_engine': False  # SmolVLM requires vLLM v0 engine
+        'prefill_mode': 'append',
+        'type': 'vllm',
+        'stage1_max_tokens': 1024,  # Instruct model is chattier than Qwen2.5
+        # 'sampling_params': {  # From Qwen3-VL-8B-Instruct model card (presence_penalty removed)
+        #     'temperature': 0.7,
+        #     'top_p': 0.8,
+        #     'top_k': 20,
+        #     'repetition_penalty': 1.0,
+        #     'seed': 0
+        # }
     },
-    'smolvlm2-2.2b': {
-        'hf_path': "HuggingFaceTB/SmolVLM2-2.2B-Instruct",
+    'qwen3-vl-8b-thinking': {
+        'hf_path': "Qwen/Qwen3-VL-8B-Thinking",
         'tensor_parallel_size': 1,
-        'gpu_memory_utilization': 0.95,  # Lower memory for 2.2B model
+        'gpu_memory_utilization': 0.92,
         'trust_remote_code': True,
-        'max_model_len': 8192,  # SmolVLM max context length
-        'prefill_mode': 'append',  # Append prefill after chat template
-        'type': 'vllm',  # Local vLLM inference
-        'use_v1_engine': False  # SmolVLM requires vLLM v0 engine
+        'prefill_mode': 'append',
+        'type': 'vllm',
+        'stage1_max_tokens': 4096,  # Thinking model needs more tokens for <think> block
+        'sampling_params': {  # From Qwen3-VL-8B-Thinking model card
+            'temperature': 1.0,
+            'top_p': 0.95,
+            'top_k': 20,
+            'repetition_penalty': 1.0,
+            'presence_penalty': 0.0,
+            'seed': 0
+        }
     }
 }
 

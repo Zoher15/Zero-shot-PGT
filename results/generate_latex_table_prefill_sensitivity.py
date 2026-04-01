@@ -2,10 +2,11 @@
 Generate LaTeX table for prefill phrasing sensitivity analysis.
 
 Creates a publication-ready table showing how different prefill phrases affect performance:
-- Baseline (no phrase)
-- CoT (chain of thought)
-- S2 (style and synthesis)
-- Variants (o2, artifacts, style, details, flaws) with deltas relative to S2
+- CoT, S2, and variant phrases (o2, artifacts, style, details, flaws)
+- Sorted by average Macro F1 ascending
+- Deltas relative to CoT
+- Best result per dataset column bolded
+- Columns: Prefill Phrase, D3, DF40, GenImage
 """
 
 import json
@@ -32,22 +33,11 @@ DATASET_DISPLAY_NAMES = {
     'genimage-2k': 'GenImage (2k)'
 }
 
-# Phrase configuration
-PHRASES = {
-    'baseline': {'display': 'Baseline', 'prefill': '---'},
-    'cot': {'display': 'CoT', 'prefill': None},  # Will load from config
-    's2': {'display': 'S2', 'prefill': None},    # Will load from config
-    'variants': [
-        'o2',
-        'artifacts',
-        'style',
-        'details',
-        'flaws'
-    ]
-}
+# All phrases to include in the table
+ALL_PHRASES = ['cot', 's2', 'o2', 'artifacts', 'style', 'details', 'flaws']
 
-# Model to use for the table
-MODEL = 'qwen25-vl-7b'
+# Models to generate tables for
+MODELS = pc.MODEL_ORDER  # ['llava-onevision-7b', 'qwen25-vl-7b', 'qwen3-vl-8b']
 
 # Output directory
 TABLES_DIR = Path(__file__).resolve().parent / "tables"
@@ -59,8 +49,6 @@ TABLES_DIR.mkdir(parents=True, exist_ok=True)
 
 def get_phrase_text(phrase_name: str) -> str:
     """Get the full prefill text for a phrase."""
-    if phrase_name == 'baseline':
-        return '---'
     return config.get_phrase_text(phrase_name)
 
 
@@ -101,8 +89,8 @@ def load_macro_f1(dataset: str, model: str, phrase: str, mode: str = 'prefill') 
         return None
 
 
-def format_f1_with_delta(f1: Optional[float], baseline_f1: Optional[float]) -> str:
-    """Format F1 score with delta annotation relative to baseline."""
+def format_f1_with_delta(f1: Optional[float], cot_f1: Optional[float], is_bold: bool = False) -> str:
+    """Format F1 score with delta annotation relative to CoT."""
     if f1 is None:
         return "---"
 
@@ -111,15 +99,18 @@ def format_f1_with_delta(f1: Optional[float], baseline_f1: Optional[float]) -> s
     f1_rounded = round(f1_pct, 1)
     f1_str = f"{f1_rounded:.1f}"
 
-    # Calculate delta if baseline exists
-    if baseline_f1 is not None and baseline_f1 != f1:
-        baseline_pct = baseline_f1 * 100
-        baseline_rounded = round(baseline_pct, 1)
+    if is_bold:
+        f1_str = f"\\textbf{{{f1_str}}}"
+
+    # Calculate delta if CoT baseline exists
+    if cot_f1 is not None and cot_f1 != f1:
+        cot_pct = cot_f1 * 100
+        cot_rounded = round(cot_pct, 1)
         # Calculate delta from rounded values for consistency with displayed numbers
-        delta = f1_rounded - baseline_rounded
+        delta = f1_rounded - cot_rounded
         if abs(delta) >= 0.05:  # Only show delta if >= 0.05
             sign = "+" if delta > 0 else ""
-            delta_str = f"{{\\scriptsize ({sign}{delta:.1f})}}"
+            delta_str = f"{{\\fontsize{{4.75}}{{5.75}}\\selectfont ({sign}{delta:.1f})}}"
             return f"{f1_str} {delta_str}"
 
     return f1_str
@@ -143,110 +134,73 @@ def format_prefill_text(text: str) -> str:
     }
     for old, new in replacements.items():
         text = text.replace(old, new)
-    return f"\\figureinput{{{text}}}"
+    return f"{{\\fontsize{{6pt}}{{7.2pt}}\\selectfont\\figureinput{{{text}}}}}"
 
 
 def generate_latex_table(model: str, output_path: Path):
     """Generate LaTeX table for prefill sensitivity analysis."""
 
-    # Load phrase texts
-    PHRASES['cot']['prefill'] = get_phrase_text('cot')
-    PHRASES['s2']['prefill'] = get_phrase_text('s2')
-
-    # Collect all data
-    data = {}
-
-    # Baseline
-    data['baseline'] = {}
-    for dataset in DATASETS:
-        f1 = load_macro_f1(dataset, model, 'baseline')
-        data['baseline'][dataset] = f1
-
-    # CoT
-    data['cot'] = {}
-    for dataset in DATASETS:
-        f1 = load_macro_f1(dataset, model, 'cot', 'prefill')
-        data['cot'][dataset] = f1
-
-    # S2
-    data['s2'] = {}
-    for dataset in DATASETS:
-        f1 = load_macro_f1(dataset, model, 's2', 'prefill')
-        data['s2'][dataset] = f1
-
-    # Variants
-    data['variants'] = {}
-    for variant in PHRASES['variants']:
-        data['variants'][variant] = {
-            'prefill': get_phrase_text(variant),
-            'scores': {}
-        }
+    # Collect scores for all phrases
+    rows = []  # List of (phrase_name, prefill_text, {dataset: f1})
+    for phrase in ALL_PHRASES:
+        prefill_text = get_phrase_text(phrase)
+        scores = {}
         for dataset in DATASETS:
-            f1 = load_macro_f1(dataset, model, variant, 'prefill')
-            data['variants'][variant]['scores'][dataset] = f1
+            scores[dataset] = load_macro_f1(dataset, model, phrase, 'prefill')
+        rows.append((phrase, prefill_text, scores))
 
-    # Start building LaTeX table
+    # Separate CoT (pinned first) from the rest
+    cot_row = rows[0]  # First entry is 'cot'
+    cot_scores = cot_row[2]
+    rest = rows[1:]
+
+    # Compute average F1 for sorting (treat None as 0)
+    def avg_f1(scores):
+        vals = [v for v in scores.values() if v is not None]
+        return sum(vals) / len(vals) if vals else 0.0
+
+    # Sort remaining rows by average F1 ascending
+    rest.sort(key=lambda r: avg_f1(r[2]))
+    rows = [cot_row] + rest
+
+    # Find best (max) F1 per dataset column
+    best_per_dataset = {}
+    for dataset in DATASETS:
+        valid = [r[2][dataset] for r in rows if r[2][dataset] is not None]
+        best_per_dataset[dataset] = max(valid) if valid else None
+
+    # Build LaTeX table
     lines = []
     lines.append("\\begin{table*}[t]")
     lines.append("\\centering")
-    lines.append("\\begin{tabular}{llllll}")
+    lines.append("\\fontsize{8.25}{9.75}\\selectfont")
+    lines.append("\\setlength{\\tabcolsep}{8pt}")
+    lines.append("\\begin{tabular}{llll}")
     lines.append("\\toprule")
 
-    # Header
-    header = "\\textbf{Phrase} & \\textbf{Prefill} & "
+    # Header: Prefill Phrase, D3, DF40, GenImage
+    header = "\\textbf{Prefill Phrase} & "
     header += " & ".join([f"\\textbf{{{DATASET_DISPLAY_NAMES[d]}}}" for d in DATASETS])
     header += " \\\\"
     lines.append(header)
     lines.append("\\midrule")
 
-    # Baseline row
-    row = "Baseline & --- & "
-    row += " & ".join([format_f1_with_delta(data['baseline'][d], None) for d in DATASETS])
-    row += " \\\\"
-    lines.append(row)
-    lines.append("\\midrule")
+    # Data rows
+    for phrase, prefill_text, scores in rows:
+        prefill_formatted = format_prefill_text(prefill_text)
+        row = f"{prefill_formatted} & "
 
-    # CoT row
-    prefill_text = format_prefill_text(PHRASES['cot']['prefill'])
-    row = f"CoT & {prefill_text} & "
-    row += " & ".join([format_f1_with_delta(data['cot'][d], None) for d in DATASETS])
-    row += " \\\\"
-    lines.append(row)
-    lines.append("\\midrule")
-
-    # S2 row
-    prefill_text = format_prefill_text(PHRASES['s2']['prefill'])
-    row = f"S2 & {prefill_text} & "
-    row += " & ".join([format_f1_with_delta(data['s2'][d], None) for d in DATASETS])
-    row += " \\\\"
-    lines.append(row)
-    lines.append("\\midrule")
-
-    # Variants rows (nested with multirow)
-    num_variants = len(PHRASES['variants'])
-    for i, variant in enumerate(PHRASES['variants']):
-        variant_data = data['variants'][variant]
-        prefill_text = format_prefill_text(variant_data['prefill'])
-
-        row = ""
-        if i == 0:
-            # First variant row: include multirow label
-            row += f"\\multirow{{{num_variants}}}{{*}}{{Variants}} & "
-        else:
-            # Subsequent rows: empty phrase column
-            row += " & "
-
-        # Prefill column
-        row += f"{prefill_text} & "
-
-        # Dataset columns with deltas relative to S2
-        f1_values = []
+        f1_cells = []
         for dataset in DATASETS:
-            f1 = variant_data['scores'][dataset]
-            s2_f1 = data['s2'][dataset]
-            f1_values.append(format_f1_with_delta(f1, s2_f1))
+            f1 = scores[dataset]
+            cot_f1 = cot_scores[dataset]
+            is_best = (f1 is not None and best_per_dataset[dataset] is not None
+                       and round(f1 * 100, 1) == round(best_per_dataset[dataset] * 100, 1))
+            # CoT row gets no delta (it's the reference)
+            ref = None if phrase == 'cot' else cot_f1
+            f1_cells.append(format_f1_with_delta(f1, ref, is_bold=is_best))
 
-        row += " & ".join(f1_values)
+        row += " & ".join(f1_cells)
         row += " \\\\"
         lines.append(row)
 
@@ -255,8 +209,8 @@ def generate_latex_table(model: str, output_path: Path):
     lines.append("\\end{tabular}")
     lines.append("\\caption{Sensitivity to prefill phrasing. "
                 "All methods use prefill mode. "
-                "Variants show performance change relative to S2 baseline. "
-                f"Results for {MODEL}.}}")
+                "Deltas shown relative to CoT. "
+                f"Results for {pc.MODEL_NAMES.get(model, model)}.}}")
     lines.append("\\label{tab:prefill_sensitivity}")
     lines.append("\\end{table*}")
 
@@ -264,7 +218,7 @@ def generate_latex_table(model: str, output_path: Path):
     with open(output_path, 'w') as f:
         f.write('\n'.join(lines))
 
-    print(f"✅ LaTeX table generated: {output_path}")
+    print(f"LaTeX table generated: {output_path}")
 
 
 # =============================================================================
@@ -272,9 +226,10 @@ def generate_latex_table(model: str, output_path: Path):
 # =============================================================================
 
 def main():
-    """Generate LaTeX table."""
-    output_path = TABLES_DIR / f"prefill_sensitivity_{MODEL}.tex"
-    generate_latex_table(MODEL, output_path)
+    """Generate LaTeX tables for all models."""
+    for model in MODELS:
+        output_path = TABLES_DIR / f"prefill_sensitivity_{model}.tex"
+        generate_latex_table(model, output_path)
 
 
 if __name__ == '__main__':

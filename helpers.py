@@ -374,11 +374,20 @@ def _generate_stage1_responses(examples: List[Dict[str, Any]], model_name: str, 
     if not inputs:
         raise ValueError("No valid images to process")
 
-    # Generate responses with temperature based on n
-    if n == 1:
-        sampling_params = SamplingParams(temperature=0.0, max_tokens=512, stop=None, n=n)
-    else:
-        sampling_params = SamplingParams(max_tokens=512, stop=None, n=n)
+    # Build sampling params from model config, falling back to defaults
+    max_tokens = model_config.get('stage1_max_tokens', 512)
+    model_sampling = model_config.get('sampling_params', {})
+    sampling_params = SamplingParams(
+        temperature=model_sampling.get('temperature', 0.0 if n == 1 else 1.0),
+        top_p=model_sampling.get('top_p', 1.0),
+        top_k=model_sampling.get('top_k', 0),
+        repetition_penalty=model_sampling.get('repetition_penalty', 1.0),
+        presence_penalty=model_sampling.get('presence_penalty', 0.0),
+        seed=model_sampling.get('seed', None),
+        max_tokens=max_tokens,
+        stop=None,
+        n=n
+    )
     outputs = llm.generate(inputs, sampling_params=sampling_params)
 
     # Map responses back to original indices for LLaVA, or direct mapping for others
@@ -672,8 +681,9 @@ def load_reasoning_json(dataset: str, model: str, phrase: str,
     """
     output_dir = config.get_output_dir(dataset, model, phrase, mode, n)
 
-    # Find most recent reasoning JSON
-    reasoning_files = sorted(output_dir.glob("reasoning_*.json"))
+    # Find most recent reasoning JSON (exclude _with_probs and _with_logprobs variants)
+    reasoning_files = sorted([f for f in output_dir.glob("reasoning_*.json")
+                             if '_with_probs' not in f.name and '_with_logprobs' not in f.name])
     if not reasoning_files:
         raise FileNotFoundError(f"No reasoning JSON found in {output_dir}")
 
